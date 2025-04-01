@@ -1,70 +1,117 @@
-# Getting Started with Create React App
+# FaceHire
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+FaceHire is a comprehensive platform that integrates a React-based front-end, Firebase for backend services, and an Express server for additional functionalities. The project is designed to streamline hiring processes with modern web technologies and plans to integrate advanced machine learning features in the future.
 
-## Available Scripts
+## Project Structure
 
-In the project directory, you can run:
+```
+FaceHire/
+├── facehire_ui/           # React front-end app
+│   ├── public/            # Public assets
+│   └── src/               # Source code for the UI
+│       └── firebase.js    # Firebase configuration (API keys, etc.) - excluded from GitHub
+├── facehire_backend/      # Firebase configuration and future ML models
+├── firebase_external/     # Express server for additional Firebase operations
+└── .gitignore             # Git ignore rules to exclude sensitive files and folders
+```
 
-### `npm start`
+## Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Responsive Front-End:** Developed with React for a seamless user experience.
+- **Firebase Integration:** Connects to Firebase for authentication, real-time database, and more.
+- **Custom API Server:** An Express server handles additional backend processes.
+- **Future ML Integration:** Planned support for machine learning models to enhance the hiring process.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Setup and Installation
 
-### `npm test`
+### Prerequisites
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- [Node.js](https://nodejs.org/) (v14 or above)
+- [Git](https://git-scm.com/)
+- [Firebase CLI](https://firebase.google.com/docs/cli) (for Firebase related tasks)
 
-### `npm run build`
+### Installation Steps
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. **Clone the Repository:**
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+   ```bash
+   git clone https://github.com/yourusername/FaceHire.git
+   cd FaceHire
+   ```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+2. **Install Dependencies:**
 
-### `npm run eject`
+   - **For the UI App:**
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+     ```bash
+     cd facehire_ui
+     npm install
+     cd ..
+     ```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+   - **For the Express Server:**
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+     ```bash
+     cd firebase_external
+     npm install
+     cd ..
+     ```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+3. **Configure Environment Variables:**
 
-## Learn More
+   Sensitive data like API keys and Firebase secrets are excluded from version control. To set up your local environment, do the following:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+   - **For the Express Server:**
+     
+     Create a `.env` file in the `firebase_external` folder:
+     
+     ```env
+     FIREBASE_SECRET=your_firebase_secret_here
+     ```
+     
+   - **For the UI App:**
+     
+     Consider using environment variables as per Create React App guidelines. You can create a `.env` file with keys prefixed by `REACT_APP_`.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+   *Optional:* Provide sample configuration files like `.env.example` or `firebase.example.js` for guidance.
 
-### Code Splitting
+4. **Running the Project:**
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+   - **Start the UI App:**
 
-### Analyzing the Bundle Size
+     ```bash
+     cd facehire_ui
+     npm start
+     ```
+     
+   - **Start the Express Server:**
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+     ```bash
+     cd firebase_external
+     npm start
+     ```
 
-### Making a Progressive Web App
+## Configuration Details
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+- **Sensitive Files:**  
+  Files such as `firebase.json`, `serviceAccountKey.json`, and `facehire_ui/src/firebase.js` (which contains your Firebase API key) are excluded via the `.gitignore` file. Use sample files (`firebase.example.js`, `.env.example`) for guidance.
 
-### Advanced Configuration
+## Contributing
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Contributions are welcome! To contribute:
 
-### Deployment
+1. Fork the repository.
+2. Create a new branch:  
+   ```bash
+   git checkout -b feature/YourFeatureName
+   ```
+3. Commit your changes with descriptive commit messages.
+4. Push the branch and create a pull request.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## License
 
-### `npm run build` fails to minify
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Contact
+
+For any questions or support, please open an issue or reach out via [your-email@example.com](mailto:your-email@example.com).
