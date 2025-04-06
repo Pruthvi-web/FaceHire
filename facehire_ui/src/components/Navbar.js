@@ -1,42 +1,120 @@
 // src/components/Navbar.js
 
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import useUserRole from '../hooks/useUserRole';
 
 function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = auth.currentUser;
   const role = useUserRole(user);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const handleLogout = async () => {
-    try {
-      await auth.signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error("Logout error:", error);
+  // Determine if the current route is the "dashboard" page (for admin or candidate).
+  const dashboardPaths = ['/dashboard', '/candidate/dashboard'];
+  // If on a dashboard page, expand navbar by default; otherwise, collapse.
+  const [isCollapsed, setIsCollapsed] = useState(!dashboardPaths.includes(location.pathname));
+
+  // When location changes, update collapsed state accordingly.
+  useEffect(() => {
+    if (dashboardPaths.includes(location.pathname)) {
+      setIsCollapsed(false);
+    } else {
+      setIsCollapsed(true);
+    }
+  }, [location.pathname]);
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    setDropdownOpen(prev => !prev);
+  };
+
+  const toggleNavbar = (e) => {
+    e.stopPropagation();
+    setIsCollapsed(prev => !prev);
+  };
+
+  const handleProfile = (e) => {
+    e.stopPropagation();
+    setDropdownOpen(false);
+    // Navigate to profile page based on role.
+    if (role === 'admin') {
+      navigate('/dashboard/profile');
+    } else {
+      navigate('/candidate/profile');
     }
   };
 
+  const handleLogout = (e) => {
+    e.stopPropagation();
+    auth.signOut()
+      .then(() => {
+        navigate('/login');
+      })
+      .catch((error) => {
+        console.error('Logout error:', error);
+      });
+  };
+
   return (
-    <nav style={styles.navbar}>
-      <div style={styles.logo}>
-        <h2>FaceHire</h2>
+    <nav style={styles.navbar} onClick={() => setDropdownOpen(false)}>
+      <div style={styles.leftSection}>
+        <Link
+          to={role === 'admin' ? '/dashboard' : '/candidate/dashboard'}
+          style={styles.logo}
+        >
+          FaceHire
+        </Link>
+        <button onClick={toggleNavbar} style={styles.toggleButton}>
+          {isCollapsed ? '☰' : '✕'}
+        </button>
       </div>
-      <div style={styles.navLinks}>
-        <Link to="/dashboard" style={styles.link}>Dashboard</Link>
-        <Link to="/interviews" style={styles.link}>Interviews</Link>
-        <Link to="/resume-checker" style={styles.link}>Resume Checker</Link>
-        {role === 'admin' && (
-          <Link to="/admin" style={styles.link}>Admin Panel</Link>
+      {!isCollapsed && (
+        <div style={styles.navLinks}>
+          {role === 'admin' ? (
+            <>
+              <NavLink to="/dashboard" style={styles.link}>
+                Dashboard
+              </NavLink>
+              <NavLink to="/interviews" style={styles.link}>
+                Interviews
+              </NavLink>
+              <NavLink to="/resume-checker" style={styles.link}>
+                Resume Checker
+              </NavLink>
+              <NavLink to="/admin" style={styles.link}>
+                Admin Panel
+              </NavLink>
+            </>
+          ) : (
+            <>
+              {/* For candidates, include a link to their dashboard */}
+              <NavLink to="/candidate/dashboard" style={styles.link}>
+                Dashboard
+              </NavLink>
+              <NavLink to="/candidate/past" style={styles.link}>
+                Past Interviews
+              </NavLink>
+            </>
+          )}
+        </div>
+      )}
+      <div style={styles.profileContainer} onClick={toggleDropdown}>
+        <span role="img" aria-label="profile" style={styles.profileIcon}>
+          👤
+        </span>
+        {dropdownOpen && (
+          <div style={styles.dropdown}>
+            <div style={styles.dropdownItem} onClick={handleProfile}>
+              Profile
+            </div>
+            <div style={styles.dropdownItem} onClick={handleLogout}>
+              Logout
+            </div>
+          </div>
         )}
-        {role && role !== 'admin' && (
-          <Link to="/candidate-dashboard" style={styles.link}>Candidate Dashboard</Link>
-        )}
-      </div>
-      <div>
-        <button onClick={handleLogout} style={styles.logoutButton}>Logout</button>
       </div>
     </nav>
   );
@@ -49,11 +127,26 @@ const styles = {
     alignItems: 'center',
     backgroundColor: '#1976d2',
     padding: '10px 20px',
-    color: '#fff'
+    color: '#fff',
+    position: 'relative'
+  },
+  leftSection: {
+    display: 'flex',
+    alignItems: 'center'
   },
   logo: {
     fontSize: '1.5rem',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    color: '#fff',
+    textDecoration: 'none',
+    marginRight: '10px'
+  },
+  toggleButton: {
+    fontSize: '1.5rem',
+    background: 'none',
+    border: 'none',
+    color: '#fff',
+    cursor: 'pointer'
   },
   navLinks: {
     display: 'flex',
@@ -61,16 +154,29 @@ const styles = {
   },
   link: {
     color: '#fff',
-    textDecoration: 'none',
-    fontSize: '1rem'
+    textDecoration: 'none'
   },
-  logoutButton: {
+  profileContainer: {
+    position: 'relative',
+    cursor: 'pointer'
+  },
+  profileIcon: {
+    fontSize: '1.5rem'
+  },
+  dropdown: {
+    position: 'absolute',
+    right: 0,
+    top: '40px',
     backgroundColor: '#fff',
     color: '#1976d2',
-    border: 'none',
-    padding: '8px 12px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
     borderRadius: '4px',
-    cursor: 'pointer'
+    overflow: 'hidden'
+  },
+  dropdownItem: {
+    padding: '10px 20px',
+    cursor: 'pointer',
+    borderBottom: '1px solid #eee'
   }
 };
 

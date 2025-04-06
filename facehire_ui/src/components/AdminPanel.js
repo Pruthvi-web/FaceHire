@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { firestore } from '../firebase';
+import { toast } from 'react-toastify';
 
 function AdminPanel() {
   const [name, setName] = useState('');
@@ -63,7 +64,7 @@ function AdminPanel() {
       });
 
       await batch.commit();
-      setMessage(`User created successfully with UID: ${uid}`);
+      toast.success(`User created successfully!`);
       
       // Clear the form fields.
       setName('');
@@ -72,7 +73,7 @@ function AdminPanel() {
       setRole('user');
     } catch (error) {
       console.error("Error adding user request:", error);
-      setMessage(`Error: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     }
   };
 
