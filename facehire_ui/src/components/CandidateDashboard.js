@@ -2,123 +2,102 @@
 
 import React, { useState, useEffect } from 'react';
 import { firestore, auth } from '../firebase';
+import { toast } from 'react-toastify';
 
-// Helper function to safely convert Firestore timestamp to Date.
+// Helper to convert Firestore Timestamp (or Date) to a JavaScript Date.
 const convertTimestampToDate = (ts) => {
   if (!ts) return null;
-  if (ts.seconds) {
-    return new Date(ts.seconds * 1000);
-  }
+  if (ts.seconds) return new Date(ts.seconds * 1000);
   return new Date(ts);
 };
 
 function CandidateDashboard() {
-  // Get the candidate's UID from the current auth user.
+  // Get candidate's UID.
   const candidateUid = auth.currentUser ? auth.currentUser.uid : null;
-
-  const [activeTab, setActiveTab] = useState('upcoming'); // "upcoming" and "past" tabs
-  const [upcomingInterviews, setUpcomingInterviews] = useState([]);
-  const [missedInterviews, setMissedInterviews] = useState([]);
+  const [activeTab, setActiveTab] = useState("schedule");
+  const [formData, setFormData] = useState({ date: '', time: '', interviewer: '' });
+  const [upcomingInterviews, setUpcomingInterviews] = useState([]); // future interviews
+  const [missedInterviews, setMissedInterviews] = useState([]);     // interviews that have passed
   const [pastInterviews, setPastInterviews] = useState([]);
-  const [formData, setFormData] = useState({
-    date: '',
-    time: '',
-    interviewer: '',
-  });
   const [loadingUpcoming, setLoadingUpcoming] = useState(true);
-  const [loadingMissed, setLoadingMissed] = useState(true);
   const [loadingPast, setLoadingPast] = useState(true);
 
   // Function to schedule an interview.
   const scheduleInterview = async (e) => {
     e.preventDefault();
     if (!candidateUid) {
-      alert('Candidate UID not found. Please log in again.');
+      toast.error("Candidate UID not found. Please log in again.");
       return;
     }
     try {
-      // Combine date and time into a Date object.
       const scheduledAt = new Date(`${formData.date}T${formData.time}:00`);
-      
       const newInterview = {
         candidateUid,
-        scheduledAt, // Firestore will convert this to a Timestamp.
+        scheduledAt, // Firestore converts this to a Timestamp.
         interviewer: formData.interviewer,
         status: 'upcoming',
         createdAt: new Date(),
       };
       await firestore.collection('interviews').add(newInterview);
-      alert('Interview scheduled successfully!');
-      // Clear form fields.
+      toast.success("Interview scheduled successfully!");
       setFormData({ date: '', time: '', interviewer: '' });
     } catch (error) {
-      console.error('Error scheduling interview:', error);
-      alert('Error scheduling interview. Please try again.');
+      console.error("Error scheduling interview:", error);
+      toast.error("Error scheduling interview. Please try again.");
     }
   };
 
-  // Query upcoming interviews: scheduledAt >= now.
+  // Fetch upcoming interviews (status 'upcoming') and partition into future and missed.
   useEffect(() => {
     if (!candidateUid) return;
     const now = new Date();
-    const unsubscribeUpcoming = firestore
-      .collection('interviews')
+    const unsubscribe = firestore.collection('interviews')
       .where('candidateUid', '==', candidateUid)
       .where('status', '==', 'upcoming')
-      .where('scheduledAt', '>=', now)
       .orderBy('scheduledAt')
-      .onSnapshot((snapshot) => {
-        const upcoming = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setUpcomingInterviews(upcoming);
-        setLoadingUpcoming(false);
-      }, error => {
-        console.error('Error fetching upcoming interviews:', error);
-        setLoadingUpcoming(false);
-      });
-    return () => unsubscribeUpcoming();
-  }, [candidateUid]);
-
-  // Query missed interviews: scheduledAt < now.
-  useEffect(() => {
-    if (!candidateUid) return;
-    const now = new Date();
-    const unsubscribeMissed = firestore
-      .collection('interviews')
-      .where('candidateUid', '==', candidateUid)
-      .where('status', '==', 'upcoming')
-      .where('scheduledAt', '<', now)
-      .orderBy('scheduledAt', 'desc')
-      .onSnapshot((snapshot) => {
-        const missed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      .onSnapshot(snapshot => {
+        const future = [];
+        const missed = [];
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          if (!data.scheduledAt) return;
+          const scheduledDate = convertTimestampToDate(data.scheduledAt);
+          if (scheduledDate >= now) {
+            future.push({ id: doc.id, ...data });
+          } else {
+            missed.push({ id: doc.id, ...data });
+          }
+        });
+        setUpcomingInterviews(future);
         setMissedInterviews(missed);
-        setLoadingMissed(false);
+        setLoadingUpcoming(false);
       }, error => {
-        console.error('Error fetching missed interviews:', error);
-        setLoadingMissed(false);
+        console.error("Error fetching interviews:", error);
+        toast.error("Error fetching interviews.");
+        setLoadingUpcoming(false);
       });
-    return () => unsubscribeMissed();
+    return () => unsubscribe();
   }, [candidateUid]);
 
-  // Query past (completed) interviews.
+  // Fetch past (completed) interviews.
   useEffect(() => {
     if (!candidateUid) return;
-    const unsubscribePast = firestore
-      .collection('interviews')
+    const unsubscribePast = firestore.collection('interviews')
       .where('candidateUid', '==', candidateUid)
       .where('status', '==', 'completed')
       .orderBy('scheduledAt', 'desc')
-      .onSnapshot((snapshot) => {
+      .onSnapshot(snapshot => {
         const past = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPastInterviews(past);
         setLoadingPast(false);
       }, error => {
-        console.error('Error fetching past interviews:', error);
+        console.error("Error fetching past interviews:", error);
+        toast.error("Error fetching past interviews.");
         setLoadingPast(false);
       });
     return () => unsubscribePast();
   }, [candidateUid]);
 
-  // Render the tab for scheduling an interview.
   const renderScheduleTab = () => (
     <div>
       <h3>Schedule an Interview</h3>
@@ -155,54 +134,58 @@ function CandidateDashboard() {
     </div>
   );
 
-  // Render upcoming interviews: those with scheduledAt >= now are shown normally,
-  // and those with scheduledAt < now (missed) are shown in a greyed-out section.
   const renderUpcomingTab = () => (
     <div>
-      <h3>Upcoming Interviews</h3>
+      <h3>Upcoming/Missed Interviews</h3>
       {loadingUpcoming ? (
-        <p>Loading upcoming interviews...</p>
-      ) : upcomingInterviews.length === 0 ? (
-        <p>No upcoming interviews scheduled.</p>
+        <p>Loading interviews...</p>
       ) : (
-        <ul>
-          {upcomingInterviews.map((interview) => {
-            const scheduledAt = convertTimestampToDate(interview.scheduledAt);
-            return (
-              <li key={interview.id}>
-                <strong>Date:</strong> {scheduledAt ? scheduledAt.toLocaleDateString() : 'N/A'} |{' '}
-                <strong>Time:</strong> {scheduledAt ? scheduledAt.toLocaleTimeString() : 'N/A'} |{' '}
-                <strong>Interviewer:</strong> {interview.interviewer}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {missedInterviews.length > 0 && (
-        <div style={{ marginTop: '20px', color: '#888' }}>
-          <h4 style={{ color: '#888' }}>Missed Interviews (Deadline Passed)</h4>
-          {loadingMissed ? (
-            <p>Loading missed interviews...</p>
+        <>
+          {upcomingInterviews.length === 0 && missedInterviews.length === 0 ? (
+            <p>No upcoming interviews scheduled.</p>
           ) : (
-            <ul>
-              {missedInterviews.map((interview) => {
-                const scheduledAt = convertTimestampToDate(interview.scheduledAt);
-                return (
-                  <li key={interview.id}>
-                    <strong>Date:</strong> {scheduledAt ? scheduledAt.toLocaleDateString() : 'N/A'} |{' '}
-                    <strong>Time:</strong> {scheduledAt ? scheduledAt.toLocaleTimeString() : 'N/A'} |{' '}
-                    <strong>Interviewer:</strong> {interview.interviewer}
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              {upcomingInterviews.length > 0 && (
+                <div>
+                  <h4>Scheduled Interviews</h4>
+                  <ul>
+                    {upcomingInterviews.map(interview => {
+                      const dateObj = convertTimestampToDate(interview.scheduledAt);
+                      return (
+                        <li key={interview.id}>
+                          <strong>Date:</strong> {dateObj ? dateObj.toLocaleDateString() : 'N/A'} |{' '}
+                          <strong>Time:</strong> {dateObj ? dateObj.toLocaleTimeString() : 'N/A'} |{' '}
+                          <strong>Interviewer:</strong> {interview.interviewer}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {missedInterviews.length > 0 && (
+                <div style={{ marginTop: '20px', color: '#888' }}>
+                  <h4>Missed Interviews (Deadline Passed)</h4>
+                  <ul>
+                    {missedInterviews.map(interview => {
+                      const dateObj = convertTimestampToDate(interview.scheduledAt);
+                      return (
+                        <li key={interview.id}>
+                          <strong>Date:</strong> {dateObj ? dateObj.toLocaleDateString() : 'N/A'} |{' '}
+                          <strong>Time:</strong> {dateObj ? dateObj.toLocaleTimeString() : 'N/A'} |{' '}
+                          <strong>Interviewer:</strong> {interview.interviewer}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
-        </div>
+        </>
       )}
     </div>
   );
 
-  // Render the Past Interviews & Reports tab.
   const renderPastTab = () => (
     <div>
       <h3>Past Interviews & Reports</h3>
@@ -212,12 +195,12 @@ function CandidateDashboard() {
         <p>No past interviews available.</p>
       ) : (
         <ul>
-          {pastInterviews.map((interview) => {
-            const scheduledAt = convertTimestampToDate(interview.scheduledAt);
+          {pastInterviews.map(interview => {
+            const dateObj = convertTimestampToDate(interview.scheduledAt);
             return (
               <li key={interview.id}>
-                <strong>Date:</strong> {scheduledAt ? scheduledAt.toLocaleDateString() : 'N/A'} |{' '}
-                <strong>Time:</strong> {scheduledAt ? scheduledAt.toLocaleTimeString() : 'N/A'} |{' '}
+                <strong>Date:</strong> {dateObj ? dateObj.toLocaleDateString() : 'N/A'} |{' '}
+                <strong>Time:</strong> {dateObj ? dateObj.toLocaleTimeString() : 'N/A'} |{' '}
                 <strong>Interviewer:</strong> {interview.interviewer}
                 {interview.report && (
                   <>
@@ -246,13 +229,13 @@ function CandidateDashboard() {
           style={activeTab === 'upcoming' ? styles.activeTab : styles.tab}
           onClick={() => setActiveTab('upcoming')}
         >
-          Upcoming Interviews
+          Upcoming/Missed Interviews
         </button>
         <button
           style={activeTab === 'past' ? styles.activeTab : styles.tab}
           onClick={() => setActiveTab('past')}
         >
-          Past Interviews & Reports
+          Past Interviews/Reports
         </button>
       </div>
       <div style={styles.contentContainer}>

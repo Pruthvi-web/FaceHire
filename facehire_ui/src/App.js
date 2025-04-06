@@ -11,6 +11,7 @@ import { auth } from './firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import Layout from './components/Layout';
 import useUserRole from './hooks/useUserRole';
+import ToastNotifications from './components/ToastNotifications';
 
 function App() {
   const [user, loading] = useAuthState(auth);
@@ -28,6 +29,7 @@ function App() {
 
   return (
     <Router>
+      <ToastNotifications />
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
         {/* Candidate Login Route */}
