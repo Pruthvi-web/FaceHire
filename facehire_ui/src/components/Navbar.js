@@ -91,8 +91,14 @@ function Navbar() {
           ) : (
             <>
               {/* For candidates, include a link to their dashboard */}
-              <NavLink to="/candidate/dashboard" style={styles.link}>
+              <NavLink to="/candidate-dashboard" style={styles.link}>
                 Dashboard
+              </NavLink>
+              <NavLink to="/candidate/interview" style={styles.link}>
+                Interview
+              </NavLink>
+              <NavLink to="/candidate/resume-checker" style={styles.link}>
+                Resume Checker
               </NavLink>
               <NavLink to="/candidate/past" style={styles.link}>
                 Past Interviews
