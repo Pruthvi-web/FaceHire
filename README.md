@@ -35,7 +35,7 @@ FaceHire/
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/yourusername/FaceHire.git
+   git clone https://github.com/Pruthvi-web/FaceHire.git
    cd FaceHire
    ```
 
@@ -111,7 +111,3 @@ Contributions are welcome! To contribute:
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For any questions or support, please open an issue or reach out via [your-email@example.com](mailto:your-email@example.com).
