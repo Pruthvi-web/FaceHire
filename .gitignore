@@ -18,5 +18,8 @@ facehire_external/serviceAccountKey.json
 # 6) Firebase file containing API key
 facehire_ui/src/firebase.js
 
+# 7) Firebase file containing API key
+facehire_ui/src/cloudinaryConfig.js
+
 # (Optional) If you want to skip the Firebase CLI config too
 **/.firebaserc
