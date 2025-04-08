@@ -7,12 +7,14 @@ import Dashboard from './components/Dashboard';
 import AdminPanel from './components/AdminPanel';
 import CandidateLogin from './components/CandidateLogin';
 import CandidateDashboard from './components/CandidateDashboard';
+import CandidateResumeChecker from './components/CandidateResumeChecker';
 import { auth } from './firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import Layout from './components/Layout';
 import useUserRole from './hooks/useUserRole';
 import ToastNotifications from './components/ToastNotifications';
-
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 function App() {
   const [user, loading] = useAuthState(auth);
   const role = useUserRole(user);
@@ -28,6 +30,8 @@ function App() {
   // console.log(user)
 
   return (
+    <>
+      <ToastContainer position="top-right" autoClose={3000} />
     <Router>
       <ToastNotifications />
       <Routes>
@@ -41,12 +45,14 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="admin" element={isAdmin ? <AdminPanel /> : <div>Access Denied</div>} />
           <Route path="interviews" element={<div>Interviews Page (Coming Soon)</div>} />
-          <Route path="resume-checker" element={<div>Resume Checker (Coming Soon)</div>} />
+          <Route path="resume-checker" element={<CandidateResumeChecker />} />
           <Route index element={<Navigate to="dashboard" />} />
         </Route>
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </Router>
+    </>
+
   );
 }
 

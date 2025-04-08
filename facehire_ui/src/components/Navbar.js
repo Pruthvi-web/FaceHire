@@ -94,13 +94,13 @@ function Navbar() {
               <NavLink to="/candidate-dashboard" style={styles.link}>
                 Dashboard
               </NavLink>
-              <NavLink to="/candidate/interview" style={styles.link}>
+              <NavLink to="/inrtview" style={styles.link}>
                 Interview
               </NavLink>
-              <NavLink to="/candidate/resume-checker" style={styles.link}>
+              <NavLink to="/resume-checker" style={styles.link}>
                 Resume Checker
               </NavLink>
-              <NavLink to="/candidate/past" style={styles.link}>
+              <NavLink to="/past-interviews" style={styles.link}>
                 Past Interviews
               </NavLink>
             </>
