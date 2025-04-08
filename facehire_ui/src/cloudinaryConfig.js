@@ -2,7 +2,7 @@
 
 const cloudinaryConfig = {
     cloudName: "dtxlngc0h",
-    uploadPreset: "facehire"
+    uploadPreset: "facehiretest"
   };
   
   export default cloudinaryConfig;
