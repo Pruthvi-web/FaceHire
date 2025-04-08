@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Papa from 'papaparse';
 import { toast } from 'react-toastify';
 import { auth, firestore } from '../firebase';
+import * as faceapi from 'face-api.js';
 
 // DEBUG flag to enable/disable extra logging.
 const DEBUG = false;
@@ -93,36 +94,88 @@ function InterviewPage() {
     setCurrentIndex(0);
   }, [selectedCategory, allQuestions]);
 
-  // --- STEP 3: Setup camera feed ---
+  // --- STEP 3: Setup camera feed ONLY in InterviewPage ---
   useEffect(() => {
+    let stream; // local variable to store the stream
     const setupCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
+        debugLog("Camera stream started.");
       } catch (error) {
         debugLog("Error accessing webcam:", error);
         toast.error("Unable to access camera. Please check your browser settings.");
       }
     };
+    
     setupCamera();
+    
+    // Cleanup function: stop all tracks when the component unmounts.
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          track.stop();
+        });
+        debugLog("Camera stream stopped on unmount.");
       }
     };
   }, []);
 
   // --- STEP 4: Poll for real-time emotion ---
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (videoRef.current) {
-        const emotions = detectEmotions(videoRef.current);
-        setEmotionalState(emotions);
-        debugLog("Detected emotions:", emotions);
+    const loadModels = async () => {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+        await faceapi.nets.faceExpressionNet.loadFromUri("/models");
+        debugLog("face-api.js models loaded successfully.");
+      } catch (error) {
+        debugLog("Error loading face-api.js models:", error);
+        toast.error("Failed to load face detection models.");
       }
-    }, 1000);
+    };
+    loadModels();
+  }, []);
+  
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (videoRef.current) {
+        try {
+          const detections = await faceapi
+            .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+            .withFaceExpressions();
+          if (detections && detections.expressions) {
+            const expressions = detections.expressions;
+            // Determine the dominant expression for "mood"
+            let dominantExpression = "neutral";
+            let dominantValue = 0;
+            for (const [expr, value] of Object.entries(expressions)) {
+              if (value > dominantValue) {
+                dominantValue = value;
+                dominantExpression = expr;
+              }
+            }
+            // Compute anxiety using a weighted formula
+            // We assume: angry, fearful, and sad contribute positively; happy reduces anxiety.
+            const rawAnxiety = 
+              0.3 * (expressions.angry || 0) + 
+              0.3 * (expressions.fearful || 0) + 
+              0.2 * (expressions.sad || 0) - 
+              0.4 * (expressions.happy || 0);
+            // Ensure no negative values
+            const adjustedAnxiety = Math.max(0, rawAnxiety);
+            // Multiply by 20 to amplify differences, then clamp the result between 0 and 10
+            const anxietyScore = Math.min(10, Math.round(adjustedAnxiety * 20));
+
+            setEmotionalState({ mood: dominantExpression, anxietyScore: anxietyScore.toString() });
+            debugLog("Detected expressions:", expressions, "Dominant:", dominantExpression, "Anxiety Score:", anxietyScore);
+          }
+        } catch (error) {
+          debugLog("Error in face detection:", error);
+        }
+      }
+    }, 1000); // Poll every second
     return () => clearInterval(interval);
   }, []);
 
@@ -235,7 +288,6 @@ function InterviewPage() {
     if (currentIndex + 1 < sessionQuestions.length) {
       setCurrentIndex(prev => prev + 1);
     } else {
-      // Call completeInterviewSession with updatedResponses to ensure latest answer is included.
       completeInterviewSession(updatedResponses);
     }
   };
@@ -247,17 +299,16 @@ function InterviewPage() {
       userId: candidateUid,
       selectedCategory,
       numQuestions: sessionQuestions.length,
-      responses: sessionResponses, // Save the entire responses array
+      responses: sessionResponses,
       completedAt: new Date()
     };
     try {
-        console.log(sessionData)
       await firestore.collection("interviewSessions").add(sessionData);
       toast.success("Interview session saved successfully!");
       setPhase("completed");
     } catch (error) {
       debugLog("Error saving interview session:", error);
-      toast.error("Failed to save interview session.");
+      toast.error("Failed to save interview session: " + error.message);
     }
   };
 
