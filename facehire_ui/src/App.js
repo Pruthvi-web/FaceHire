@@ -31,9 +31,15 @@ function App() {
 
   return (
     <>
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer 
+        position="top-right" 
+        autoClose={3000} 
+        closeOnClick 
+        pauseOnHover 
+        draggable 
+      />
     <Router>
-      <ToastNotifications />
+      {/* <ToastNotifications /> */}
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
         {/* Candidate Login Route */}
