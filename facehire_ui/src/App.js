@@ -8,13 +8,14 @@ import AdminPanel from './components/AdminPanel';
 import CandidateLogin from './components/CandidateLogin';
 import CandidateDashboard from './components/CandidateDashboard';
 import CandidateResumeChecker from './components/CandidateResumeChecker';
-import { auth } from './firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import InterviewPage from './components/InterviewPage';
 import Layout from './components/Layout';
 import useUserRole from './hooks/useUserRole';
-import ToastNotifications from './components/ToastNotifications';
+import { auth } from './firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
 function App() {
   const [user, loading] = useAuthState(auth);
   const role = useUserRole(user);
@@ -23,11 +24,8 @@ function App() {
     return <div style={{ padding: "20px" }}>Loading...</div>;
   }
 
-  // Determine if the user is an admin based on their Firestore "role" field.
+  // Determine if the user is an admin based on their role.
   const isAdmin = role === 'admin';
-
-  // console.log(role)
-  // console.log(user)
 
   return (
     <>
@@ -38,27 +36,29 @@ function App() {
         pauseOnHover 
         draggable 
       />
-    <Router>
-      {/* <ToastNotifications /> */}
-      <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-        {/* Candidate Login Route */}
-        <Route path="/candidate-login" element={<CandidateLogin />} />
-        {/* Candidate Dashboard Route */}
-        <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
-        {/* Protected routes using the Layout */}
-        <Route path="/" element={user ? <Layout /> : <Navigate to="/login" />}>
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="admin" element={isAdmin ? <AdminPanel /> : <div>Access Denied</div>} />
-          <Route path="interviews" element={<div>Interviews Page (Coming Soon)</div>} />
-          <Route path="resume-checker" element={<CandidateResumeChecker />} />
-          <Route index element={<Navigate to="dashboard" />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
-    </Router>
+      <Router>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
+          <Route path="/candidate-login" element={!user ? <CandidateLogin /> : <Navigate to="/candidate-dashboard" />} />
+          <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
+          
+          {/* Protected Routes using Layout */}
+          <Route path="/" element={user ? <Layout /> : <Navigate to="/login" />}>
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="admin" element={isAdmin ? <AdminPanel /> : <div>Access Denied</div>} />
+            <Route path="interviews" element={<div>Interviews Page (Coming Soon)</div>} />
+            <Route path="resume-checker" element={<CandidateResumeChecker />} />
+            {/* New Interview Route */}
+            <Route path="interview" element={<InterviewPage />} />
+            <Route index element={<Navigate to="dashboard" />} />
+          </Route>
+          
+          {/* Fallback Route */}
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </Router>
     </>
-
   );
 }
 
