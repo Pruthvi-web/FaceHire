@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { firestore, auth } from '../firebase';
 import { toast } from 'react-toastify';
+import { Link } from 'react-router-dom';
+
 
 // Helper to convert Firestore Timestamp (or Date) to a JavaScript Date.
 const convertTimestampToDate = (ts) => {
@@ -156,6 +158,10 @@ function CandidateDashboard() {
                           <strong>Date:</strong> {dateObj ? dateObj.toLocaleDateString() : 'N/A'} |{' '}
                           <strong>Time:</strong> {dateObj ? dateObj.toLocaleTimeString() : 'N/A'} |{' '}
                           <strong>Interviewer:</strong> {interview.interviewer}
+                          {/* ←–– here’s your Join button */}
+                          <Link to={`/interview/${interview.id}`} style={{ marginLeft: '12px', textDecoration: 'none' }}>
+                          <button type="button">Join</button>
+                          </Link>
                         </li>
                       );
                     })}

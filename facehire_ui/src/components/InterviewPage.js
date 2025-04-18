@@ -5,6 +5,7 @@ import Papa from 'papaparse';
 import { toast } from 'react-toastify';
 import { auth, firestore } from '../firebase';
 import * as faceapi from 'face-api.js';
+import { useParams } from 'react-router-dom';
 
 // DEBUG flag to enable/disable extra logging.
 const DEBUG = false;
@@ -25,6 +26,7 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 
 function InterviewPage() {
   // Phase: "waiting", "inProgress", or "completed"
+  const { interviewId } = useParams();
   const [phase, setPhase] = useState("waiting");
 
   // Waiting area state
@@ -294,8 +296,9 @@ function InterviewPage() {
 
   // --- STEP 9: Complete Interview Session & Save as One Document in Firestore ---
   const completeInterviewSession = async (sessionResponses) => {
-    if (!candidateUid) return;
+    if (!candidateUid || !interviewId) return;
     const sessionData = {
+      interviewId,  
       userId: candidateUid,
       selectedCategory,
       numQuestions: sessionQuestions.length,
@@ -303,7 +306,16 @@ function InterviewPage() {
       completedAt: new Date()
     };
     try {
-      await firestore.collection("interviewSessions").add(sessionData);
+      const sessionRef = await firestore
+        .collection("interviewSessions")
+        .add(sessionData);
+      await firestore
+        .collection("interviews")
+        .doc(interviewId)
+        .update({
+          status: 'completed',
+          sessionId: sessionRef.id,    // remove if you don’t need it
+      });
       toast.success("Interview session saved successfully!");
       setPhase("completed");
     } catch (error) {

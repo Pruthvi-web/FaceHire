@@ -50,7 +50,7 @@ function App() {
             <Route path="interviews" element={<div>Interviews Page (Coming Soon)</div>} />
             <Route path="resume-checker" element={<CandidateResumeChecker />} />
             {/* New Interview Route */}
-            <Route path="interview" element={<InterviewPage />} />
+            <Route path="/interview/:interviewId" element={<InterviewPage />} />
             <Route index element={<Navigate to="dashboard" />} />
           </Route>
           
