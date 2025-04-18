@@ -1,6 +1,6 @@
 // src/components/AdminPanel.js
 
-import React, { useState } from 'react';
+import React, { useState , useEffect } from 'react';
 import { firestore } from '../firebase';
 import { toast } from 'react-toastify';
 
@@ -10,6 +10,28 @@ function AdminPanel() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('user');
   const [message, setMessage] = useState('');
+  const [mode,    setMode]    = useState("openai");
+  const [apiKey, setApiKey]  = useState("");
+
+  useEffect(() => {
+    const docRef = firestore.collection("config").doc("grading");
+    docRef.get().then(snap => {
+      if (snap.exists) {
+        const data = snap.data();
+        setMode(data.mode || "openai");
+        setApiKey(data.apiKey || "");
+      }
+    });
+  }, []);
+
+  const saveConfig = async () => {
+    try {
+      await firestore.collection("config").doc("grading").set({ mode, apiKey });
+      toast.success("Grading config saved!");
+    } catch (err) {
+      toast.error("Failed to save config: " + err.message);
+    }
+  };
 
   // Function to call the external server to create an Auth user.
   const createUserExternally = async (userData) => {
@@ -118,7 +140,30 @@ function AdminPanel() {
         </div>
         <button type="submit">Submit User Request</button>
       </form>
+      <hr />
+
+      <h3>Grading Configuration</h3>
+      <div style={{ marginBottom: 8 }}>
+        <label>Mode: </label>
+        <select value={mode} onChange={e => setMode(e.target.value)}>
+          <option value="openai">OpenAI</option>
+          <option value="local">Local Pre-trained Model</option>
+        </select>
+      </div>
+      
+      <div style={{ marginBottom: 8 }}>
+        <label>OpenAI API Key:</label><br/>
+        <input
+          type="text"
+          value={apiKey}
+          onChange={e => setApiKey(e.target.value)}
+          placeholder="sk-..."
+          style={{ width: "100%" }}
+        />
+      </div>
+      <button onClick={saveConfig}>Save Grading Config</button>
     </div>
+    
   );
 }
 

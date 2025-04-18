@@ -6,6 +6,8 @@ import { toast } from 'react-toastify';
 import { auth, firestore } from '../firebase';
 import * as faceapi from 'face-api.js';
 import { useParams } from 'react-router-dom';
+import stringSimilarity from 'string-similarity';
+
 
 // DEBUG flag to enable/disable extra logging.
 const DEBUG = false;
@@ -28,6 +30,7 @@ function InterviewPage() {
   // Phase: "waiting", "inProgress", or "completed"
   const { interviewId } = useParams();
   const [phase, setPhase] = useState("waiting");
+  const [gradedResponses, setGradedResponses] = useState([]);
 
   // Waiting area state
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -297,12 +300,41 @@ function InterviewPage() {
   // --- STEP 9: Complete Interview Session & Save as One Document in Firestore ---
   const completeInterviewSession = async (sessionResponses) => {
     if (!candidateUid || !interviewId) return;
+
+    console.log("Grading sessionResponses:", sessionResponses);
+    console.log("stringSimilarity function:", stringSimilarity);
+
+    const gradedResponses = sessionResponses.map(resp => {
+      // find matching question in this session
+      const q = sessionQuestions.find(q => q.Question === resp.question) || {};
+      const correct = q.Answer ?? q.Answer ?? "";
+
+      // compare lowercased strings
+      const similarity = stringSimilarity.compareTwoStrings(
+        resp.answer.trim().toLowerCase(),
+        correct.trim().toLowerCase()
+      );
+      const score = Math.round(similarity * 100);
+      let grade;
+      if (score >= 80) grade = 'A';
+      else if (score >= 60) grade = 'B';
+      else if (score >= 40) grade = 'C';
+      else grade = 'F';
+  
+      return {
+        ...resp,
+        correctAnswer: correct,
+        score,
+        grade
+      };
+    });
+    setGradedResponses(gradedResponses);
     const sessionData = {
       interviewId,  
       userId: candidateUid,
       selectedCategory,
       numQuestions: sessionQuestions.length,
-      responses: sessionResponses,
+      responses: gradedResponses,
       completedAt: new Date()
     };
     try {
