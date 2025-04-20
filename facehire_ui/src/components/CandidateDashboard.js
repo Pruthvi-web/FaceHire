@@ -1,6 +1,13 @@
 // src/components/CandidateDashboard.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Table, TableHead, TableBody, TableRow, TableCell,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, Typography
+} from '@mui/material';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { firestore, auth } from '../firebase';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
@@ -24,6 +31,21 @@ function CandidateDashboard() {
   const [pastInterviews, setPastInterviews] = useState([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(true);
   const [loadingPast, setLoadingPast] = useState(true);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState(null);
+  const reportRef = useRef();    // ← NEW: ref to the report DOM node
+  // NEW: generate & download PDF of the report
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current) return;
+    const canvas = await html2canvas(reportRef.current);
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`report_${selectedInterview.id}.pdf`);
+  };
 
   // NEW: subscribe to interviewer list
   useEffect(() => {
@@ -133,6 +155,34 @@ function CandidateDashboard() {
     return () => unsubscribePast();
   }, [candidateUid]);
 
+  useEffect(() => {
+    if (!candidateUid) return;
+    const unsubscribePast = firestore.collection('interviews')
+      .where('candidateUid', '==', candidateUid)
+      .where('status', '==', 'completed')
+      .orderBy('scheduledAt', 'desc')
+      .onSnapshot(snapshot => {
+        const past = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPastInterviews(past);
+        setLoadingPast(false);
+      }, error => {
+        console.error("Error fetching past interviews:", error);
+        toast.error("Error fetching past interviews.");
+        setLoadingPast(false);
+      });
+    return () => unsubscribePast();
+  }, [candidateUid]);
+
+  // Open/close modal
+  const openReport = (interview) => {
+    setSelectedInterview(interview);
+    setModalOpen(true);
+  };
+  const closeReport = () => {
+    setModalOpen(false);
+    setSelectedInterview(null);
+  };
+
   const renderScheduleTab = () => (
     <div>
       <h3>Schedule an Interview</h3>
@@ -232,27 +282,80 @@ function CandidateDashboard() {
     <div>
       <h3>Past Interviews & Reports</h3>
       {loadingPast ? (
-        <p>Loading past interviews...</p>
+        <p>Loading past interviews…</p>
       ) : pastInterviews.length === 0 ? (
         <p>No past interviews available.</p>
       ) : (
-        <ul>
+        <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Date & Time</TableCell>
+            <TableCell>Interviewer</TableCell>
+            <TableCell>Action</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {pastInterviews.map(interview => {
             const dateObj = convertTimestampToDate(interview.scheduledAt);
             return (
-              <li key={interview.id}>
-                <strong>Date:</strong> {dateObj ? dateObj.toLocaleDateString() : 'N/A'} |{' '}
-                <strong>Time:</strong> {dateObj ? dateObj.toLocaleTimeString() : 'N/A'} |{' '}
-                <strong>Interviewer:</strong> {interview.interviewer}
-                {interview.report && (
-                  <>
-                    <br /><strong>Report:</strong> {interview.report}
-                  </>
-                )}
-              </li>
+              <TableRow key={interview.id}>
+                <TableCell>{dateObj?.toLocaleString() || 'N/A'}</TableCell>
+                <TableCell>{interview.interviewer}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="contained"
+                    onClick={() => openReport(interview)}
+                  >
+                    Show Report
+                  </Button>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </ul>
+        </TableBody>
+      </Table>
+      )}
+      {selectedInterview && (
+        <Dialog
+          open={modalOpen}
+          fullScreen
+          onClose={closeReport}
+        >
+          <DialogTitle>
+            Interview Assessment Report
+          </DialogTitle>
+          <DialogContent dividers ref={reportRef}>
+            <Typography variant="subtitle1">
+              <strong>Candidate:</strong> {auth.currentUser.displayName || auth.currentUser.email}
+            </Typography>
+            <Typography variant="subtitle1">
+              <strong>Date:</strong> {convertTimestampToDate(selectedInterview.scheduledAt)?.toLocaleString()}
+            </Typography>
+            <Typography variant="subtitle1">
+              <strong>Interviewer:</strong> {selectedInterview.interviewer}
+            </Typography>
+            <Typography variant="h6" gutterBottom>
+              Total Score:{" "}
+              {(selectedInterview.responses ?? [])
+                .reduce((sum, r) => sum + (r.score || 0), 0)}
+            </Typography>
+            <hr />
+            {(selectedInterview.responses ?? []).map((resp, i) => (
+              <div key={i} style={{ marginBottom: 16 }}>
+                <Typography variant="body1">
+                  <strong>Q{i+1} ({resp.difficulty}):</strong> {resp.question}
+                </Typography>
+                <Typography variant="body2"><em>Expected:</em> {resp.correctAnswer}</Typography>
+                <Typography variant="body2"><em>Your Answer:</em> {resp.answer}</Typography>
+                <Typography variant="body2"><em>Marks:</em> {resp.score}</Typography>
+              </div>
+            ))}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDownloadPDF}>Download PDF</Button>
+            <Button onClick={closeReport}>Close</Button>
+          </DialogActions>
+        </Dialog>
       )}
     </div>
   );
@@ -314,6 +417,33 @@ const styles = {
     border: '1px solid #ccc',
     borderRadius: '4px',
     padding: '20px'
+  },
+  th: {
+    borderBottom: '1px solid #999',
+    textAlign: 'left',
+    padding: '8px'
+  },
+  td: {
+    borderBottom: '1px solid #eee',
+    padding: '8px'
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: '8px',
+    width: '85%',
+    height: '85%',
+    padding: '20px',
+    overflowY: 'auto',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
   }
 };
 
