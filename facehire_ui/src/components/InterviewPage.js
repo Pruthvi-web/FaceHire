@@ -1,5 +1,6 @@
 // src/components/InterviewPage.js
 
+import { pipeline } from '@xenova/transformers';
 import React, { useState, useEffect, useRef } from 'react';
 import Papa from 'papaparse';
 import { toast } from 'react-toastify';
@@ -7,6 +8,11 @@ import { auth, firestore } from '../firebase';
 import * as faceapi from 'face-api.js';
 import { useParams } from 'react-router-dom';
 import stringSimilarity from 'string-similarity';
+import { openai } from '../openai';
+import OpenAI from 'openai';                            // ← default export
+
+import * as use from '@tensorflow-models/universal-sentence-encoder';
+import '@tensorflow/tfjs';
 
 
 // DEBUG flag to enable/disable extra logging.
@@ -25,6 +31,50 @@ function detectEmotions(videoElement) {
 
 // Speech Recognition Setup
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const useExtractor = () => {
+  const [extractor, setExtractor] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await pipeline(
+          'feature-extraction',
+          // loads your local copy:
+          '/models/use-mini'
+        );
+
+        debugLog("p:", p)
+        setExtractor(p);
+        debugLog('✅ MiniLM extractor loaded');
+      } catch (e) {
+        console.error('Extractor load failed', e);
+        toast.error('Failed to load NLP model');
+      }
+    })();
+  }, []);
+
+  return extractor;
+};
+
+// ——— Load the USE model from TF Hub ———
+const useModelLoader = () => {
+  const [model, setModel] = useState(null);
+
+  useEffect(() => {
+    use.load()   // by default pulls from TF Hub: https://tfhub.dev/.../use-lite/1 :contentReference[oaicite:1]{index=1}
+      .then(m => {
+        setModel(m);
+        debugLog('✅ USE model loaded from TF Hub');
+      })
+      .catch(err => {
+        console.error('❌ Failed to load USE:', err);
+        toast.error('Failed to load grading model');
+      });
+  }, []);
+
+  return model;
+};
 
 function InterviewPage() {
   // Phase: "waiting", "inProgress", or "completed"
@@ -60,6 +110,36 @@ function InterviewPage() {
 
   // Get candidate UID.
   const candidateUid = auth.currentUser ? auth.currentUser.uid : null;
+
+  // ——— Grading config from Firestore ———
+  const [gradingMode, setGradingMode] = useState("openai");
+  const [gradingApiKey, setGradingApiKey] = useState("");
+  const [openaiClient, setOpenaiClient] = useState(null);
+
+  // Load grading config once
+  useEffect(() => {
+    firestore.collection("config").doc("grading").get()
+      .then(snap => {
+        if (snap.exists) {
+          const cfg = snap.data();
+          setGradingMode(cfg.mode || "openai");
+          setGradingApiKey(cfg.apiKey || "");
+        }
+      })
+      .catch(err => console.error("Config load error:", err));
+  }, []);
+
+  // Reconfigure OpenAI client whenever mode or key changes
+  useEffect(() => {
+    if (gradingMode === "openai" && gradingApiKey) {
+      setOpenaiClient(new OpenAI({ apiKey: gradingApiKey, dangerouslyAllowBrowser: true }));
+      debugLog("OpenAI client initialized");
+    } else {
+      setOpenaiClient(null);
+    }
+  }, [gradingMode, gradingApiKey]);
+
+  const model = useModelLoader();
 
   // --- STEP 1: Load CSV question bank ---
   useEffect(() => {
@@ -299,60 +379,59 @@ function InterviewPage() {
 
   // --- STEP 9: Complete Interview Session & Save as One Document in Firestore ---
   const completeInterviewSession = async (sessionResponses) => {
-    if (!candidateUid || !interviewId) return;
+    if (!candidateUid||!interviewId) return;
+    const graded = await Promise.all(sessionResponses.map(async resp=>{
+      const q = sessionQuestions.find(q=>q.Question===resp.question)||{};
+      const correct = q.Answer||"";
+      let score=0;
 
-    console.log("Grading sessionResponses:", sessionResponses);
-    console.log("stringSimilarity function:", stringSimilarity);
+      if (gradingMode==="openai" && openaiClient) {
+        try {
+          const res = await openaiClient.createEmbedding({
+            model:"text-embedding-ada-002",
+            input:[resp.answer,correct]
+          });
+          const [u,v] = res.data.data.map(d=>d.embedding);
+          const dot=u.reduce((s,x,i)=>s+x*v[i],0);
+          const magU=Math.hypot(...u), magV=Math.hypot(...v);
+          score=magU&&magV?Math.round(dot/(magU*magV)*100):0;
+        } catch (e) {
+          debugLog("OpenAI embed error:",e);
+          score = Math.round(
+            stringSimilarity.compareTwoStrings(
+              resp.answer.trim().toLowerCase(),
+              correct.trim().toLowerCase()
+            )*100
+          );
+        }
+      } else {
+        score = Math.round(
+          stringSimilarity.compareTwoStrings(
+            resp.answer.trim().toLowerCase(),
+            correct.trim().toLowerCase()
+          )*100
+        );
+      }
 
-    const gradedResponses = sessionResponses.map(resp => {
-      // find matching question in this session
-      const q = sessionQuestions.find(q => q.Question === resp.question) || {};
-      const correct = q.Answer ?? q.Answer ?? "";
+      const grade = score>=80?'A':score>=60?'B':score>=40?'C':'F';
+      return {...resp, correctAnswer:correct, score, grade};
+    }));
 
-      // compare lowercased strings
-      const similarity = stringSimilarity.compareTwoStrings(
-        resp.answer.trim().toLowerCase(),
-        correct.trim().toLowerCase()
-      );
-      const score = Math.round(similarity * 100);
-      let grade;
-      if (score >= 80) grade = 'A';
-      else if (score >= 60) grade = 'B';
-      else if (score >= 40) grade = 'C';
-      else grade = 'F';
-  
-      return {
-        ...resp,
-        correctAnswer: correct,
-        score,
-        grade
-      };
-    });
-    setGradedResponses(gradedResponses);
-    const sessionData = {
-      interviewId,  
-      userId: candidateUid,
-      selectedCategory,
-      numQuestions: sessionQuestions.length,
-      responses: gradedResponses,
-      completedAt: new Date()
-    };
+    setGradedResponses(graded);
+
     try {
-      const sessionRef = await firestore
-        .collection("interviewSessions")
-        .add(sessionData);
-      await firestore
-        .collection("interviews")
-        .doc(interviewId)
-        .update({
-          status: 'completed',
-          sessionId: sessionRef.id,    // remove if you don’t need it
+      const sessionRef = await firestore.collection("interviewSessions").add({
+        interviewId, userId:candidateUid,
+        selectedCategory, numQuestions: sessionQuestions.length,
+        responses:graded, completedAt:new Date()
       });
-      toast.success("Interview session saved successfully!");
+      await firestore.collection("interviews")
+        .doc(interviewId)
+        .update({status:'completed', sessionId:sessionRef.id});
+      toast.success("Interview saved!");
       setPhase("completed");
-    } catch (error) {
-      debugLog("Error saving interview session:", error);
-      toast.error("Failed to save interview session: " + error.message);
+    } catch (err) {
+      toast.error("Save error: "+err.message);
     }
   };
 
