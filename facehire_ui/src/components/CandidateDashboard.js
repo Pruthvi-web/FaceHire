@@ -20,9 +20,42 @@ function CandidateDashboard() {
   const [formData, setFormData] = useState({ date: '', time: '', interviewer: '' });
   const [upcomingInterviews, setUpcomingInterviews] = useState([]); // future interviews
   const [missedInterviews, setMissedInterviews] = useState([]);     // interviews that have passed
+  const [interviewers, setInterviewers] = useState([]);          // NEW
   const [pastInterviews, setPastInterviews] = useState([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(true);
   const [loadingPast, setLoadingPast] = useState(true);
+
+  // NEW: subscribe to interviewer list
+  useEffect(() => {
+    const unsubscribe = firestore
+      .collection('interviewers')
+      .orderBy('name')
+      .onSnapshot(snapshot => {
+        const list = snapshot.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name
+        }));
+        setInterviewers(list);
+
+        // If "AI" isn't already in Firestore, add it
+        if (!list.some(i => i.name === 'AI')) {
+          firestore.collection('interviewers')
+            .add({ name: 'AI', createdAt: new Date() })
+            .catch(err => console.error("Could not add default AI:", err));
+        }
+      }, err => {
+        console.error("Error loading interviewer list:", err);
+        toast.error("Could not load interviewer list");
+      });
+    return () => unsubscribe();
+  }, []);
+
+  // when interviewers list changes, default to AI if not already set
+  useEffect(() => {
+    if (interviewers.some(i => i.name === 'AI') && !formData.interviewer) {
+      setFormData(fd => ({ ...fd, interviewer: 'AI' }));
+    }
+  }, [interviewers]);
 
   // Function to schedule an interview.
   const scheduleInterview = async (e) => {
@@ -123,13 +156,16 @@ function CandidateDashboard() {
           />
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Interviewer Name:</label><br />
-          <input
-            type="text"
+          <label>Interviewer:</label><br />
+          <select
             value={formData.interviewer}
-            onChange={(e) => setFormData({ ...formData, interviewer: e.target.value })}
+            onChange={e => setFormData({ ...formData, interviewer: e.target.value })}
             required
-          />
+          >
+            {interviewers.map(i => (
+              <option key={i.id} value={i.name}>{i.name}</option>
+            ))}
+          </select>
         </div>
         <button type="submit">Schedule Interview</button>
       </form>

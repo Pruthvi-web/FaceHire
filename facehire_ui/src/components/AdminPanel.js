@@ -99,6 +99,26 @@ function AdminPanel() {
     }
   };
 
+  // NEW: state for adding interviewers
+  const [newInterviewer, setNewInterviewer] = useState('');
+
+  // NEW: write interviewer to Firestore
+  const addInterviewer = async (e) => {
+    e.preventDefault();
+    if (!newInterviewer.trim()) return;
+    try {
+      await firestore.collection('interviewers').add({
+        name: newInterviewer.trim(),
+        createdAt: new Date()
+      });
+      toast.success(`Interviewer “${newInterviewer}” added`);
+      setNewInterviewer('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to add interviewer');
+    }
+  };
+
   return (
     <div style={{ padding: '20px' }}>
       <h2>Admin Panel - Add New User</h2>
@@ -141,7 +161,21 @@ function AdminPanel() {
         <button type="submit">Submit User Request</button>
       </form>
       <hr />
-
+      <h3>Manage Interviewers</h3>
+      <form onSubmit={addInterviewer} style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 8 }}>
+          <label>Interviewer Name:</label><br />
+          <input
+            type="text"
+            value={newInterviewer}
+            onChange={e => setNewInterviewer(e.target.value)}
+            placeholder="e.g. Jane Doe"
+            required
+          />
+        </div>
+        <button type="submit">Add Interviewer</button>
+      </form>
+      <hr />
       <h3>Grading Configuration</h3>
       <div style={{ marginBottom: 8 }}>
         <label>Mode: </label>
@@ -150,7 +184,6 @@ function AdminPanel() {
           <option value="local">Local Pre-trained Model</option>
         </select>
       </div>
-      
       <div style={{ marginBottom: 8 }}>
         <label>OpenAI API Key:</label><br/>
         <input
@@ -163,7 +196,6 @@ function AdminPanel() {
       </div>
       <button onClick={saveConfig}>Save Grading Config</button>
     </div>
-    
   );
 }
 
