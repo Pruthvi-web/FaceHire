@@ -7,6 +7,7 @@ import {
   Button, Typography, Box, Divider, Grid,
   Paper, Stack
 } from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import jsPDF from 'jspdf';
@@ -56,6 +57,17 @@ function CandidateDashboard() {
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
     pdf.save(`report_${selectedInterview.id}.pdf`);
   };
+
+  const theme = createTheme({
+    typography: {
+      fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+      h4:      { fontSize: '1.5rem'  },  // dialog title
+      h6:      { fontSize: '1.125rem' },  // section headers
+      subtitle2:{ fontSize: '0.875rem' }, // labels
+      body1:   { fontSize: '0.875rem' },  // main text
+      body2:   { fontSize: '0.75rem'  },  // secondary text
+    },
+  });  
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged(user => {
@@ -338,175 +350,152 @@ function CandidateDashboard() {
     </div>
   );
 
-  const renderPastTab = () => (
-    <div>
-      <h3>Past Interviews & Reports</h3>
-      {loadingPast ? (
-        <p>Loading past interviews…</p>
-      ) : pastInterviews.length === 0 ? (
-        <p>No past interviews available.</p>
-      ) : (
+  const renderPastTab = () => {
+    const responses = selectedInterview?.responses || [];
+    // Category Summary
+    const categoryMap = responses.reduce((acc, r) => {
+      const cat = r.category || 'Uncategorized';
+      if (!acc[cat]) acc[cat] = { sum: 0, count: 0 };
+      acc[cat].sum += (r.score || 0);
+      acc[cat].count += 1;
+      return acc;
+    }, {});
+    // Emotional Analysis
+    const totalAnxiety = responses.reduce((sum, r) => sum + (r.emotion?.anxietyScore || 0), 0);
+    const avgAnxiety = responses.length ? totalAnxiety / responses.length : 0;
+    const moodCounts = responses.reduce((acc, r) => {
+      const m = r.emotion?.mood || 'Unknown';
+      acc[m] = (acc[m] || 0) + 1;
+      return acc;
+    }, {});
+
+    return (
+      <>
         <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Date & Time</TableCell>
-            <TableCell>Interviewer</TableCell>
-            <TableCell>Action</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {pastInterviews.map(interview => {
-            const dateObj = convertTimestampToDate(interview.scheduledAt);
-            return (
-              <TableRow key={interview.id}>
-                <TableCell>{dateObj?.toLocaleString() || 'N/A'}</TableCell>
-                <TableCell>{interview.interviewer}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="contained"
-                    onClick={() => openReport(interview)}
-                  >
-                    Show Report
-                  </Button>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-      )}
-      {selectedInterview && (
-        <Dialog
-          open={modalOpen}
-          fullScreen
-          onClose={closeReport}
-        >
-          <DialogTitle>
-            Interview Assessment Report
-            <IconButton
-              aria-label="close"
-              onClick={closeReport}
-              sx={{ position: 'absolute', right: 8, top: 8 }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent dividers ref={reportRef}>
-          {/* ─── Header Details ─────────────────────────────── */}
-        <Box mb={3}>
-          <Typography variant="h4" gutterBottom>
-            Interview Assessment Report
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={6} sm={3}>
-              <Typography variant="subtitle2">Candidate</Typography>
-              <Typography variant="body1">{candidateName}</Typography>
-            </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Date</Typography>
-                <Typography variant="body1">
-                  {convertTimestampToDate(selectedInterview.scheduledAt)?.toLocaleString()}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Interviewer</Typography>
-                <Typography variant="body1">{selectedInterview.interviewer}</Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Total Score</Typography>
-                <Typography variant="body1">
-                {(
-                    (selectedInterview.responses ?? [])
-                      .reduce((sum, r) => sum + (r.score || 0), 0)
-                    / Math.max((selectedInterview.responses ?? []).length, 1)
-                  ).toFixed(1)}
-                %
-                </Typography>
-              </Grid>
-            </Grid>
-          </Box>
-          <Divider />
+          <TableHead>
+            <TableRow><TableCell>Date & Time</TableCell><TableCell>Interviewer</TableCell><TableCell>Action</TableCell></TableRow>
+          </TableHead>
+          <TableBody>
+            {pastInterviews.map(iv => {
+              const d = convertTimestampToDate(iv.scheduledAt);
+              return (
+                <TableRow key={iv.id}>
+                  <TableCell>{d?.toLocaleString()}</TableCell>
+                  <TableCell>{iv.interviewer}</TableCell>
+                  <TableCell>
+                    <Button variant="contained" onClick={() => openReport(iv)}>
+                      Show Report
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
 
-        {/* ─── Question Breakdown ─────────────────────────── */}
-          <Box mt={3}>
-            <Typography variant="h6" gutterBottom>
-              Question Breakdown
-            </Typography>
-            <Stack spacing={3}>
-              {(selectedInterview.responses ?? []).map((resp, i) => (
-                <Paper key={i} elevation={1} sx={{ p: 2 }}>
-                  <Grid container spacing={2} alignItems="flex-start">
-                    {/* Question text */}
-                    <Grid item xs>
-                      <Typography
-                        variant="subtitle1"
-                        sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                      >
-                        {`Q${i + 1}. ${resp.question}`}
-                      </Typography>
-                    </Grid>
+        {selectedInterview && (
+          <Dialog open={modalOpen} fullScreen onClose={closeReport}>
+            <DialogTitle>
+              Interview Assessment Report
+              <IconButton onClick={closeReport} sx={{ position: 'absolute', right: 8, top: 8 }}>
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
 
-                    {/* Score, Emotion & Difficulty */}
-                    <Grid item>
-                      <Typography variant="body2" align="right">
-                        <strong>Score:</strong> {resp.score} / 100
-                      </Typography>
+            <DialogContent dividers ref={reportRef} sx={{ overflowY: 'auto' }}>
+              {/* Header */}
+              <Box mb={2}>
+                <Typography variant="h4">Interview Assessment Report</Typography>
+                <Grid container spacing={2} mt={1}>
+                  <Grid item xs={6} sm={3}><Typography variant="subtitle2">Candidate</Typography><Typography>{candidateName}</Typography></Grid>
+                  <Grid item xs={6} sm={3}><Typography variant="subtitle2">Date</Typography><Typography>{convertTimestampToDate(selectedInterview.scheduledAt)?.toLocaleString()}</Typography></Grid>
+                  <Grid item xs={6} sm={3}><Typography variant="subtitle2">Interviewer</Typography><Typography>{selectedInterview.interviewer}</Typography></Grid>
+                  <Grid item xs={6} sm={3}><Typography variant="subtitle2">Total Score</Typography><Typography>{(responses.reduce((s,r)=>s+(r.score||0),0)/Math.max(responses.length,1)).toFixed(1)}%</Typography></Grid>
+                </Grid>
+              </Box>
+              <Divider />
 
-                      {resp.emotion ? (
-                        <>
-                          <Typography variant="body2" align="right">
-                            <strong>Emotion:</strong> {resp.emotion.mood}
-                          </Typography>
-                          <Typography variant="body2" align="right">
-                            <strong>Anxiety:</strong> {resp.emotion.anxietyScore}
-                          </Typography>
-                        </>
-                      ) : (
-                        <Typography variant="body2">
-                          <strong>Emotion:</strong> N/A
-                        </Typography>
-                      )}
+              {/* Category Summary */}
+              <Box mt={3}>
+                <Typography variant="h6" gutterBottom>Section Summary by Category</Typography>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow><TableCell>Category</TableCell><TableCell align="right">Avg Score</TableCell><TableCell align="right">Count</TableCell></TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(categoryMap).map(([cat,{sum,count}])=>(
+                      <TableRow key={cat}>
+                        <TableCell>{cat}</TableCell>
+                        <TableCell align="right">{(sum/count).toFixed(1)}%</TableCell>
+                        <TableCell align="right">{count}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
 
-                      <Typography variant="body2" color="textSecondary">
-                        {resp.difficulty}
-                      </Typography>
-                    </Grid>
-
-                    {/* Expected vs Your Answer */}
-                    <Box mt={2}>
-                      <Typography
-                        variant="body2"
-                        sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                      >
-                        <strong>Expected:</strong> {resp.correctAnswer}
-                      </Typography>
-                    </Box>
-                    <Box mt={1}>
-                      <Typography
-                        variant="body2"
-                        sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                      >
-                        <strong>Your Answer:</strong> {resp.answer}
-                      </Typography>
-                    </Box>
+              {/* Emotional Analysis */}
+              <Box mt={3}>
+                <Typography variant="h6" gutterBottom>Emotional Analysis</Typography>
+                <Grid container spacing={2}>
+                  <Grid item>
+                    <Typography><strong>Avg Anxiety Score:</strong> {avgAnxiety.toFixed(1)}</Typography>
                   </Grid>
-                </Paper>
-              ))}
-            </Stack>
-          </Box>
+                  <Grid item>
+                    {Object.entries(moodCounts).map(([m,c])=>(
+                      <Typography key={m}><strong>{m}:</strong> {c}</Typography>
+                    ))}
+                  </Grid>
+                </Grid>
+              </Box>
 
-          </DialogContent>
-          <DialogActions>
-          {/* Print via browser print stylesheet */}
-            <Button onClick={() => window.print()}>Print</Button>
-            {/* Existing PDF download */}
-            <Button onClick={handleDownloadPDF}>Download PDF</Button>
-            <Button onClick={closeReport}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      )}
-    </div>
-  );
+              <Divider sx={{ my: 3 }} />
+
+              {/* Detailed Breakdown */}
+              <Box>
+                <Typography variant="h6" gutterBottom>Detailed Question Breakdown</Typography>
+                <Stack spacing={2}>
+                  {responses.map((resp,i)=>(
+                    <Paper key={i} sx={{ p: 2 }}>
+                      <Grid container justifyContent="space-between" alignItems="flex-start">
+                        <Grid item xs>
+                          <Typography variant="subtitle1" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                            {`Q${i+1}. ${resp.question}`}
+                          </Typography>
+                        </Grid>
+                        <Grid item>
+                          <Typography variant="body2" align="right"><strong>Score:</strong> {resp.score} / 100</Typography>
+                          <Typography variant="body2" align="right"><strong>Emotion:</strong> {resp.emotion?.mood ?? 'N/A'}</Typography>
+                          <Typography variant="body2" align="right"><strong>Anxiety:</strong> {resp.emotion?.anxietyScore ?? 0}</Typography>
+                          <Typography variant="body2" color="textSecondary" align="right">{resp.difficulty}</Typography>
+                        </Grid>
+                      </Grid>
+                      <Box mt={2}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          <strong>Expected:</strong> {resp.correctAnswer}
+                        </Typography>
+                      </Box>
+                      <Box mt={1}>
+                        <Typography variant="body2" sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          <strong>Your Answer:</strong> {resp.answer}
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  ))}
+                </Stack>
+              </Box>
+            </DialogContent>
+
+            <DialogActions>
+              <Button onClick={() => window.print()}>Print</Button>
+              <Button onClick={handleDownloadPDF}>Download PDF</Button>
+              <Button onClick={closeReport}>Close</Button>
+            </DialogActions>
+          </Dialog>
+        )}
+      </>
+    );
+  };
 
   return (
     <div style={{ padding: '20px' }}>
