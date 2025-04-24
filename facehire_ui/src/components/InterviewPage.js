@@ -76,6 +76,16 @@ const useModelLoader = () => {
   return model;
 };
 
+/** Fisher–Yates shuffle */
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function InterviewPage() {
   // Phase: "waiting", "inProgress", or "completed"
   const { interviewId } = useParams();
@@ -290,7 +300,7 @@ function InterviewPage() {
       return;
     }
     // Select up to numQuestions from the filtered questions.
-    const sessionQs = filtered.slice(0, numQuestions);
+    const sessionQs = shuffleArray(filtered).slice(0, numQuestions);
     setSessionQuestions(sessionQs);
     setCurrentIndex(0);
     setResponses([]);
