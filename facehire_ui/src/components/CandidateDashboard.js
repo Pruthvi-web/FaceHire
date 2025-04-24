@@ -428,40 +428,73 @@ function CandidateDashboard() {
           <Divider />
 
         {/* ─── Question Breakdown ─────────────────────────── */}
-        <Box mt={3}>
-          <Typography variant="h6" gutterBottom>
-            Question Breakdown
-          </Typography>
-          <Stack spacing={2}>
-            {(selectedInterview.responses ?? []).map((resp, i) => (
-              <Paper key={i} variant="outlined" sx={{ p: 2 }}>
-                <Grid container spacing={1} alignItems="center">
-                  <Grid item xs={12} sm={8}>
-                    <Typography variant="subtitle1">
-                      {`Q${i+1}. ${resp.question}`}
-                    </Typography>
+          <Box mt={3}>
+            <Typography variant="h6" gutterBottom>
+              Question Breakdown
+            </Typography>
+            <Stack spacing={3}>
+              {(selectedInterview.responses ?? []).map((resp, i) => (
+                <Paper key={i} elevation={1} sx={{ p: 2 }}>
+                  <Grid container spacing={2} alignItems="flex-start">
+                    {/* Question text */}
+                    <Grid item xs>
+                      <Typography
+                        variant="subtitle1"
+                        sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                      >
+                        {`Q${i + 1}. ${resp.question}`}
+                      </Typography>
+                    </Grid>
+
+                    {/* Score, Emotion & Difficulty */}
+                    <Grid item>
+                      <Typography variant="body2" align="right">
+                        <strong>Score:</strong> {resp.score} / 100
+                      </Typography>
+
+                      {resp.emotion ? (
+                        <>
+                          <Typography variant="body2" align="right">
+                            <strong>Emotion:</strong> {resp.emotion.mood}
+                          </Typography>
+                          <Typography variant="body2" align="right">
+                            <strong>Anxiety:</strong> {resp.emotion.anxietyScore}
+                          </Typography>
+                        </>
+                      ) : (
+                        <Typography variant="body2">
+                          <strong>Emotion:</strong> N/A
+                        </Typography>
+                      )}
+
+                      <Typography variant="body2" color="textSecondary">
+                        {resp.difficulty}
+                      </Typography>
+                    </Grid>
+
+                    {/* Expected vs Your Answer */}
+                    <Box mt={2}>
+                      <Typography
+                        variant="body2"
+                        sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                      >
+                        <strong>Expected:</strong> {resp.correctAnswer}
+                      </Typography>
+                    </Box>
+                    <Box mt={1}>
+                      <Typography
+                        variant="body2"
+                        sx={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                      >
+                        <strong>Your Answer:</strong> {resp.answer}
+                      </Typography>
+                    </Box>
                   </Grid>
-                  <Grid item xs={12} sm={4} textAlign={{ xs: 'left', sm: 'right' }}>
-                    <Typography variant="body2">
-                      <strong>Score:</strong> {resp.score} / 100
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      {resp.difficulty}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      <strong>Expected:</strong> {resp.correctAnswer}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>Your Answer:</strong> {resp.answer}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            ))}
-          </Stack>
-        </Box>
+                </Paper>
+              ))}
+            </Stack>
+          </Box>
+
           </DialogContent>
           <DialogActions>
           {/* Print via browser print stylesheet */}
