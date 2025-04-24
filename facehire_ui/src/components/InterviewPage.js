@@ -6,7 +6,7 @@ import Papa from 'papaparse';
 import { toast } from 'react-toastify';
 import { auth, firestore } from '../firebase';
 import * as faceapi from 'face-api.js';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import stringSimilarity from 'string-similarity';
 import { openai } from '../openai';
 import OpenAI from 'openai';                            // ← default export
@@ -115,6 +115,8 @@ function InterviewPage() {
   const [gradingMode, setGradingMode] = useState("openai");
   const [gradingApiKey, setGradingApiKey] = useState("");
   const [openaiClient, setOpenaiClient] = useState(null);
+
+  const navigate = useNavigate();
 
   // Load grading config once
   useEffect(() => {
@@ -438,7 +440,8 @@ function InterviewPage() {
   // --- STEP 10: Regrade Session (Placeholder) ---
   const regradeSession = async () => {
     // Placeholder: Add regrading logic here if desired.
-    toast.info("Regrading session... (Feature to be implemented)");
+    // toast.info("Regrading session... (Feature to be implemented)");
+    // toast.info("Regrading session... (Feature to be implemented)");
   };
 
   // --- Render Based on Phase ---
@@ -516,8 +519,14 @@ function InterviewPage() {
       <div style={styles.container}>
         <h2>Interview Session Completed</h2>
         <p>Your interview responses have been saved.</p>
-        <button onClick={regradeSession} style={styles.button}>
-          Regrade Session
+        <button
+          style={styles.button}
+          onClick={async () => {
+            await regradeSession();    // run your regrade logic
+            navigate('/candidate-dashboard');     // then go to /candidate
+          }}
+        >
+          Back to Dashboard
         </button>
       </div>
     );

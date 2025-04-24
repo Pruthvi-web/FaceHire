@@ -4,8 +4,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Table, TableHead, TableBody, TableRow, TableCell,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Typography
+  Button, Typography, Box, Divider, Grid,
+  Paper, Stack
 } from '@mui/material';
+import IconButton from '@mui/material/IconButton';
+import CloseIcon from '@mui/icons-material/Close';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { firestore, auth } from '../firebase';
@@ -21,8 +24,13 @@ const convertTimestampToDate = (ts) => {
 };
 
 function CandidateDashboard() {
+
+  // ─── DEBUG FLAG ───────────────────────────────────────
+  const DEBUG = false;
+  const debugLog = (...args) => { if (DEBUG) console.log(...args); };
+
   // Get candidate's UID.
-  const candidateUid = auth.currentUser ? auth.currentUser.uid : null;
+  const [candidateUid, setCandidateUid] = useState(null);
   const [activeTab, setActiveTab] = useState("schedule");
   const [formData, setFormData] = useState({ date: '', time: '', interviewer: '' });
   const [upcomingInterviews, setUpcomingInterviews] = useState([]); // future interviews
@@ -31,6 +39,8 @@ function CandidateDashboard() {
   const [pastInterviews, setPastInterviews] = useState([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(true);
   const [loadingPast, setLoadingPast] = useState(true);
+
+  const [candidateName, setCandidateName] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
@@ -46,6 +56,33 @@ function CandidateDashboard() {
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
     pdf.save(`report_${selectedInterview.id}.pdf`);
   };
+
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged(user => {
+      if (user) {
+        debugLog("🔑 auth state change, setting UID:", user.uid);
+        setCandidateUid(user.uid);
+        // fetch user profile by matching the `uid` field, not doc ID
+        firestore
+          .collection('users')
+          .where('uid', '==', user.uid)
+          .limit(1)
+          .get()
+          .then(snapshot => {
+            debugLog("snapshot", snapshot)
+            if (!snapshot.empty) {
+              const data = snapshot.docs[0].data() || {};
+              setCandidateName(data.name || user.email);
+            } else {
+              // no matching user doc → fallback to email
+              setCandidateName(user.email);
+            }
+          })
+          .catch(err => console.error("Error loading user profile:", err));
+      }
+    });
+    return unsubscribeAuth;
+  }, []);
 
   // NEW: subscribe to interviewer list
   useEffect(() => {
@@ -78,6 +115,14 @@ function CandidateDashboard() {
       setFormData(fd => ({ ...fd, interviewer: 'AI' }));
     }
   }, [interviewers]);
+
+  // Log whenever selectedInterview changes
+  useEffect(() => {
+    if (DEBUG && selectedInterview) {
+      debugLog("📋 selectedInterview:", selectedInterview);
+      debugLog("📊 responses array:", selectedInterview.responses ?? []);
+    }
+  }, [selectedInterview]);
 
   // Function to schedule an interview.
   const scheduleInterview = async (e) => {
@@ -139,29 +184,13 @@ function CandidateDashboard() {
   // Fetch past (completed) interviews.
   useEffect(() => {
     if (!candidateUid) return;
-    const unsubscribePast = firestore.collection('interviews')
+    const unsubscribePast = firestore
+      .collection('interviews')
       .where('candidateUid', '==', candidateUid)
       .where('status', '==', 'completed')
       .orderBy('scheduledAt', 'desc')
       .onSnapshot(snapshot => {
-        const past = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setPastInterviews(past);
-        setLoadingPast(false);
-      }, error => {
-        console.error("Error fetching past interviews:", error);
-        toast.error("Error fetching past interviews.");
-        setLoadingPast(false);
-      });
-    return () => unsubscribePast();
-  }, [candidateUid]);
-
-  useEffect(() => {
-    if (!candidateUid) return;
-    const unsubscribePast = firestore.collection('interviews')
-      .where('candidateUid', '==', candidateUid)
-      .where('status', '==', 'completed')
-      .orderBy('scheduledAt', 'desc')
-      .onSnapshot(snapshot => {
+        debugLog("fetched past interviews:", snapshot.docs.length);
         const past = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPastInterviews(past);
         setLoadingPast(false);
@@ -174,10 +203,41 @@ function CandidateDashboard() {
   }, [candidateUid]);
 
   // Open/close modal
-  const openReport = (interview) => {
-    setSelectedInterview(interview);
+  const openReport = async (interview) => {
+    debugLog("▶️ openReport()", interview);
+    try {
+      // 1) Query the session doc matching this interview.id
+      const sessionSnap = await firestore
+        .collection('interviewSessions')
+        .where('interviewId', '==', interview.id)
+        .limit(1)
+        .get();
+
+      if (!sessionSnap.empty) {
+        const sessionData = sessionSnap.docs[0].data();
+        debugLog("📑 sessionData", sessionData);
+
+        // 2) Merge interview + session fields (including the 'responses' array)
+        setSelectedInterview({
+          ...interview,
+          completedAt: sessionData.completedAt,
+          numQuestions: sessionData.numQuestions,
+          responses: sessionData.responses || []
+        });
+      } else {
+        debugLog("⚠️ No interviewSessions doc for interviewId:", interview.id);
+        setSelectedInterview({ ...interview, responses: [] });
+      }
+    } catch (err) {
+      console.error("Error fetching interview session:", err);
+      toast.error("Could not load interview report.");
+      return;
+    }
+
+    // 3) Now open the modal
     setModalOpen(true);
   };
+
   const closeReport = () => {
     setModalOpen(false);
     setSelectedInterview(null);
@@ -323,35 +383,90 @@ function CandidateDashboard() {
         >
           <DialogTitle>
             Interview Assessment Report
+            <IconButton
+              aria-label="close"
+              onClick={closeReport}
+              sx={{ position: 'absolute', right: 8, top: 8 }}
+            >
+              <CloseIcon />
+            </IconButton>
           </DialogTitle>
           <DialogContent dividers ref={reportRef}>
-            <Typography variant="subtitle1">
-              <strong>Candidate:</strong> {auth.currentUser.displayName || auth.currentUser.email}
-            </Typography>
-            <Typography variant="subtitle1">
-              <strong>Date:</strong> {convertTimestampToDate(selectedInterview.scheduledAt)?.toLocaleString()}
-            </Typography>
-            <Typography variant="subtitle1">
-              <strong>Interviewer:</strong> {selectedInterview.interviewer}
-            </Typography>
-            <Typography variant="h6" gutterBottom>
-              Total Score:{" "}
-              {(selectedInterview.responses ?? [])
-                .reduce((sum, r) => sum + (r.score || 0), 0)}
-            </Typography>
-            <hr />
-            {(selectedInterview.responses ?? []).map((resp, i) => (
-              <div key={i} style={{ marginBottom: 16 }}>
+          {/* ─── Header Details ─────────────────────────────── */}
+        <Box mb={3}>
+          <Typography variant="h4" gutterBottom>
+            Interview Assessment Report
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="subtitle2">Candidate</Typography>
+              <Typography variant="body1">{candidateName}</Typography>
+            </Grid>
+              <Grid item xs={6}>
+                <Typography variant="subtitle2">Date</Typography>
                 <Typography variant="body1">
-                  <strong>Q{i+1} ({resp.difficulty}):</strong> {resp.question}
+                  {convertTimestampToDate(selectedInterview.scheduledAt)?.toLocaleString()}
                 </Typography>
-                <Typography variant="body2"><em>Expected:</em> {resp.correctAnswer}</Typography>
-                <Typography variant="body2"><em>Your Answer:</em> {resp.answer}</Typography>
-                <Typography variant="body2"><em>Marks:</em> {resp.score}</Typography>
-              </div>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="subtitle2">Interviewer</Typography>
+                <Typography variant="body1">{selectedInterview.interviewer}</Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="subtitle2">Total Score</Typography>
+                <Typography variant="body1">
+                {(
+                    (selectedInterview.responses ?? [])
+                      .reduce((sum, r) => sum + (r.score || 0), 0)
+                    / Math.max((selectedInterview.responses ?? []).length, 1)
+                  ).toFixed(1)}
+                %
+                </Typography>
+              </Grid>
+            </Grid>
+          </Box>
+          <Divider />
+
+        {/* ─── Question Breakdown ─────────────────────────── */}
+        <Box mt={3}>
+          <Typography variant="h6" gutterBottom>
+            Question Breakdown
+          </Typography>
+          <Stack spacing={2}>
+            {(selectedInterview.responses ?? []).map((resp, i) => (
+              <Paper key={i} variant="outlined" sx={{ p: 2 }}>
+                <Grid container spacing={1} alignItems="center">
+                  <Grid item xs={12} sm={8}>
+                    <Typography variant="subtitle1">
+                      {`Q${i+1}. ${resp.question}`}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={4} textAlign={{ xs: 'left', sm: 'right' }}>
+                    <Typography variant="body2">
+                      <strong>Score:</strong> {resp.score} / 100
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      {resp.difficulty}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <strong>Expected:</strong> {resp.correctAnswer}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Your Answer:</strong> {resp.answer}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
             ))}
+          </Stack>
+        </Box>
           </DialogContent>
           <DialogActions>
+          {/* Print via browser print stylesheet */}
+            <Button onClick={() => window.print()}>Print</Button>
+            {/* Existing PDF download */}
             <Button onClick={handleDownloadPDF}>Download PDF</Button>
             <Button onClick={closeReport}>Close</Button>
           </DialogActions>
