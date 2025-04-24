@@ -1,202 +1,255 @@
 // src/components/AdminPanel.js
 
-import React, { useState , useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { firestore } from '../firebase';
 import { toast } from 'react-toastify';
 
-function AdminPanel() {
+const styles = {
+  container: {
+    maxWidth: 600,
+    margin: '40px auto',
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
+    color: '#1d1d1f',
+    lineHeight: 1.6,
+    padding: '0 20px',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 600,
+    marginBottom: 24,
+  },
+  section: {
+    marginBottom: 40,
+  },
+  label: {
+    display: 'block',
+    fontSize: 14,
+    fontWeight: 500,
+    marginBottom: 8,
+    color: '#3c3c4399',
+  },
+  input: {
+    display: 'block',
+    boxSizing: 'border-box',
+    width: '100%',
+    padding: '12px 16px',
+    fontSize: 16,
+    border: '1px solid #d2d2d7',
+    borderRadius: 8,
+    background: '#f5f5f7',
+    marginBottom: 24,
+    color: '#1d1d1f',
+    outline: 'none',
+  },
+  button: {
+    display: 'inline-block',
+    padding: '14px 20px',
+    fontSize: 16,
+    fontWeight: 600,
+    color: '#fff',
+    backgroundColor: '#0070f3',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    transition: 'opacity 0.2s ease',
+  },
+  hr: {
+    border: 0,
+    borderTop: '1px solid #e1e1e4',
+    margin: '40px 0',
+  },
+};
+
+export default function AdminPanel() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('user');
-  const [message, setMessage] = useState('');
-  const [mode,    setMode]    = useState("openai");
-  const [apiKey, setApiKey]  = useState("");
+  const [mode, setMode] = useState('openai');
+  const [apiKey, setApiKey] = useState('');
+  const [newInterviewer, setNewInterviewer] = useState('');
 
   useEffect(() => {
-    const docRef = firestore.collection("config").doc("grading");
-    docRef.get().then(snap => {
-      if (snap.exists) {
-        const data = snap.data();
-        setMode(data.mode || "openai");
-        setApiKey(data.apiKey || "");
-      }
-    });
+    firestore
+      .collection('config')
+      .doc('grading')
+      .get()
+      .then((snap) => {
+        if (snap.exists) {
+          const d = snap.data();
+          setMode(d.mode || 'openai');
+          setApiKey(d.apiKey || '');
+        }
+      });
   }, []);
 
   const saveConfig = async () => {
     try {
-      await firestore.collection("config").doc("grading").set({ mode, apiKey });
-      toast.success("Grading config saved!");
+      await firestore.collection('config').doc('grading').set({ mode, apiKey });
+      toast.success('Grading config saved!');
     } catch (err) {
-      toast.error("Failed to save config: " + err.message);
+      toast.error('Failed to save config: ' + err.message);
     }
   };
 
-  // Function to call the external server to create an Auth user.
   const createUserExternally = async (userData) => {
-    try {
-      const response = await fetch('http://localhost:3001/createUser', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData)
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error);
-      }
-      console.log('External server created user with UID:', data.uid);
-      return data.uid;
-    } catch (error) {
-      console.error('Error creating user externally:', error);
-      throw error;
-    }
+    const res = await fetch('http://localhost:3001/createUser', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    return data.uid;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage('');
     try {
-      // Call the external server to create the Auth user.
       const uid = await createUserExternally({ name, email, password, role });
-      
-      // Use a batched write to add/update documents in both collections.
       const batch = firestore.batch();
 
-      // Create a new document in the pendingUsers collection.
-      const pendingDocRef = firestore.collection('pendingUsers').doc();
-      batch.set(pendingDocRef, {
+      const pRef = firestore.collection('pendingUsers').doc();
+      batch.set(pRef, {
         name,
         email,
-        password, // Note: Storing plaintext passwords is not recommended for production.
+        password,
         role,
         isActivated: false,
-        uid: uid, // Set the returned UID.
-        createdAt: new Date()
+        uid,
+        createdAt: new Date(),
       });
 
-      // Create a new document in the users collection.
-      const userDocRef = firestore.collection('users').doc();
-      batch.set(userDocRef, {
+      const uRef = firestore.collection('users').doc();
+      batch.set(uRef, {
         name,
         email,
         role,
-        uid: uid, // Set the returned UID.
-        createdAt: new Date()
+        uid,
+        createdAt: new Date(),
       });
 
       await batch.commit();
-      toast.success(`User created successfully!`);
-      
-      // Clear the form fields.
+      toast.success('User created successfully!');
       setName('');
       setEmail('');
       setPassword('');
       setRole('user');
-    } catch (error) {
-      console.error("Error adding user request:", error);
-      toast.error(`Error: ${error.message}`);
+    } catch (err) {
+      toast.error(`Error: ${err.message}`);
     }
   };
 
-  // NEW: state for adding interviewers
-  const [newInterviewer, setNewInterviewer] = useState('');
-
-  // NEW: write interviewer to Firestore
   const addInterviewer = async (e) => {
     e.preventDefault();
     if (!newInterviewer.trim()) return;
     try {
       await firestore.collection('interviewers').add({
         name: newInterviewer.trim(),
-        createdAt: new Date()
+        createdAt: new Date(),
       });
       toast.success(`Interviewer “${newInterviewer}” added`);
       setNewInterviewer('');
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error('Failed to add interviewer');
     }
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Admin Panel - Add New User</h2>
-      {message && <p>{message}</p>}
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Name:</label><br />
-          <input 
-            type="text" 
-            value={name} 
-            onChange={(e) => setName(e.target.value)} 
-            required 
+    <div style={styles.container}>
+      <h2 style={styles.title}>Admin Panel</h2>
+
+      <section style={styles.section}>
+        <h3 style={{ ...styles.title, fontSize: 20 }}>Add New User</h3>
+        <form onSubmit={handleSubmit}>
+          <label style={styles.label}>Name</label>
+          <input
+            style={styles.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
           />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Email:</label><br />
-          <input 
-            type="email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
+
+          <label style={styles.label}>Email</label>
+          <input
+            style={styles.input}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
           />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Temporary Password:</label><br />
-          <input 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
+
+          <label style={styles.label}>Temporary Password</label>
+          <input
+            style={styles.input}
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
           />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Role:</label><br />
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
+
+          <label style={styles.label}>Role</label>
+          <select
+            style={{ ...styles.input, padding: '12px 16px' }}
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
-        </div>
-        <button type="submit">Submit User Request</button>
-      </form>
-      <hr />
-      <h3>Manage Interviewers</h3>
-      <form onSubmit={addInterviewer} style={{ marginBottom: 16 }}>
-        <div style={{ marginBottom: 8 }}>
-          <label>Interviewer Name:</label><br />
+
+          <button type="submit" style={styles.button}>
+            Submit
+          </button>
+        </form>
+      </section>
+
+      <hr style={styles.hr} />
+
+      <section style={styles.section}>
+        <h3 style={{ ...styles.title, fontSize: 20 }}>Manage Interviewers</h3>
+        <form onSubmit={addInterviewer}>
+          <label style={styles.label}>Interviewer Name</label>
           <input
-            type="text"
+            style={styles.input}
             value={newInterviewer}
-            onChange={e => setNewInterviewer(e.target.value)}
+            onChange={(e) => setNewInterviewer(e.target.value)}
             placeholder="e.g. Jane Doe"
             required
           />
-        </div>
-        <button type="submit">Add Interviewer</button>
-      </form>
-      <hr />
-      <h3>Grading Configuration</h3>
-      <div style={{ marginBottom: 8 }}>
-        <label>Mode: </label>
-        <select value={mode} onChange={e => setMode(e.target.value)}>
+          <button type="submit" style={styles.button}>
+            Add
+          </button>
+        </form>
+      </section>
+
+      <hr style={styles.hr} />
+
+      <section style={styles.section}>
+        <h3 style={{ ...styles.title, fontSize: 20 }}>Grading Configuration</h3>
+        <label style={styles.label}>Mode</label>
+        <select
+          style={{ ...styles.input, padding: '12px 16px' }}
+          value={mode}
+          onChange={(e) => setMode(e.target.value)}
+        >
           <option value="openai">OpenAI</option>
-          <option value="local">Local Pre-trained Model</option>
+          <option value="local">Local Model</option>
         </select>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>OpenAI API Key:</label><br/>
+
+        <label style={styles.label}>OpenAI API Key</label>
         <input
-          type="text"
+          style={styles.input}
           value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
+          onChange={(e) => setApiKey(e.target.value)}
           placeholder="sk-..."
-          style={{ width: "100%" }}
         />
-      </div>
-      <button onClick={saveConfig}>Save Grading Config</button>
+
+        <button onClick={saveConfig} style={styles.button}>
+          Save Config
+        </button>
+      </section>
     </div>
   );
 }
-
-export default AdminPanel;

@@ -5,57 +5,36 @@ import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../firebase';
 import useUserRole from '../hooks/useUserRole';
 
-function Navbar() {
+export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = auth.currentUser;
   const role = useUserRole(user);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // Determine if the current route is the "dashboard" page (for admin or candidate).
   const dashboardPaths = ['/dashboard', '/candidate/dashboard'];
-  // If on a dashboard page, expand navbar by default; otherwise, collapse.
   const [isCollapsed, setIsCollapsed] = useState(!dashboardPaths.includes(location.pathname));
 
-  // When location changes, update collapsed state accordingly.
   useEffect(() => {
-    if (dashboardPaths.includes(location.pathname)) {
-      setIsCollapsed(false);
-    } else {
-      setIsCollapsed(true);
-    }
+    setIsCollapsed(!dashboardPaths.includes(location.pathname));
   }, [location.pathname]);
 
   const toggleDropdown = (e) => {
     e.stopPropagation();
-    setDropdownOpen(prev => !prev);
+    setDropdownOpen((o) => !o);
   };
-
   const toggleNavbar = (e) => {
     e.stopPropagation();
-    setIsCollapsed(prev => !prev);
+    setIsCollapsed((c) => !c);
   };
-
   const handleProfile = (e) => {
     e.stopPropagation();
     setDropdownOpen(false);
-    // Navigate to profile page based on role.
-    if (role === 'admin') {
-      navigate('/dashboard/profile');
-    } else {
-      navigate('/candidate/profile');
-    }
+    navigate(role === 'admin' ? '/dashboard/profile' : '/candidate/profile');
   };
-
   const handleLogout = (e) => {
     e.stopPropagation();
-    auth.signOut()
-      .then(() => {
-        navigate('/login');
-      })
-      .catch((error) => {
-        console.error('Logout error:', error);
-      });
+    auth.signOut().then(() => navigate('/login')).catch(console.error);
   };
 
   return (
@@ -71,46 +50,35 @@ function Navbar() {
           {isCollapsed ? '☰' : '✕'}
         </button>
       </div>
+
       {!isCollapsed && (
         <div style={styles.navLinks}>
-          {role === 'admin' ? (
-            <>
-              <NavLink to="/dashboard" style={styles.link}>
-                Dashboard
-              </NavLink>
-              <NavLink to="/interviews" style={styles.link}>
-                Interviews
-              </NavLink>
-              <NavLink to="/resume-checker" style={styles.link}>
-                Resume Checker
-              </NavLink>
-              <NavLink to="/admin" style={styles.link}>
-                Admin Panel
-              </NavLink>
-            </>
-          ) : (
-            <>
-              {/* For candidates, include a link to their dashboard */}
-              <NavLink to="/candidate-dashboard" style={styles.link}>
-                Dashboard
-              </NavLink>
-              <NavLink to="/interview" style={styles.link}>
-                Interview
-              </NavLink>
-              <NavLink to="/resume-checker" style={styles.link}>
-                Resume Checker
-              </NavLink>
-              {/* <NavLink to="/past-interviews" style={styles.link}>
-                Past Interviews
-              </NavLink> */}
-            </>
-          )}
+          {(role === 'admin' ? [
+            { to: '/dashboard', label: 'Dashboard' },
+            { to: '/interviews', label: 'Interviews' },
+            { to: '/resume-checker', label: 'Resume Checker' },
+            { to: '/admin', label: 'Admin Panel' },
+          ] : [
+            { to: '/candidate-dashboard', label: 'Dashboard' },
+            // { to: '/interview', label: 'Interview' },
+            { to: '/resume-checker', label: 'Resume Checker' },
+          ]).map(({ to, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              style={({ isActive }) => ({
+                ...styles.link,
+                borderBottomColor: isActive ? '#0070f3' : 'transparent'
+              })}
+            >
+              {label}
+            </NavLink>
+          ))}
         </div>
       )}
+
       <div style={styles.profileContainer} onClick={toggleDropdown}>
-        <span role="img" aria-label="profile" style={styles.profileIcon}>
-          👤
-        </span>
+        <div style={styles.profileIcon}>👤</div>
         {dropdownOpen && (
           <div style={styles.dropdown}>
             <div style={styles.dropdownItem} onClick={handleProfile}>
@@ -129,61 +97,82 @@ function Navbar() {
 const styles = {
   navbar: {
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1976d2',
-    padding: '10px 20px',
-    color: '#fff',
-    position: 'relative'
+    justifyContent: 'space-between',
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
+    backgroundColor: '#fff',
+    padding: '0 20px',
+    height: 60,
+    borderBottom: '1px solid #e1e1e4',
+    color: '#1d1d1f',
+    position: 'relative',
+    zIndex: 100,
   },
   leftSection: {
     display: 'flex',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   logo: {
-    fontSize: '1.5rem',
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 20,
+    fontWeight: 600,
+    color: '#1d1d1f',
     textDecoration: 'none',
-    marginRight: '10px'
+    marginRight: 24,
   },
   toggleButton: {
-    fontSize: '1.5rem',
+    fontSize: 24,
     background: 'none',
     border: 'none',
-    color: '#fff',
-    cursor: 'pointer'
+    color: '#1d1d1f',
+    cursor: 'pointer',
+    padding: '8px',
   },
   navLinks: {
     display: 'flex',
-    gap: '15px'
+    gap: 32,
   },
   link: {
-    color: '#fff',
-    textDecoration: 'none'
+    fontSize: 16,
+    fontWeight: 500,
+    color: '#1d1d1f',
+    textDecoration: 'none',
+    padding: '8px 0',
+    borderBottom: '2px solid transparent',
+    transition: 'border-bottom-color 0.2s',
   },
   profileContainer: {
     position: 'relative',
-    cursor: 'pointer'
+    cursor: 'pointer',
   },
   profileIcon: {
-    fontSize: '1.5rem'
+    fontSize: 24,
+    lineHeight: 1,
+    padding: 6,
+    borderRadius: '50%',
+    backgroundColor: '#f5f5f7',
   },
   dropdown: {
     position: 'absolute',
+    top: 50,
     right: 0,
-    top: '40px',
     backgroundColor: '#fff',
-    color: '#1976d2',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-    borderRadius: '4px',
-    overflow: 'hidden'
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    borderRadius: 8,
+    overflow: 'hidden',
+    minWidth: 140,
   },
   dropdownItem: {
-    padding: '10px 20px',
+    padding: '12px 16px',
+    fontSize: 14,
+    color: '#1d1d1f',
     cursor: 'pointer',
-    borderBottom: '1px solid #eee'
-  }
+    borderBottom: '1px solid #e1e1e4',
+    transition: 'background-color 0.2s',
+  },
 };
 
-export default Navbar;
+// Optional: simple hover effect
+Object.assign(styles.dropdownItem, {
+  ':hover': { backgroundColor: '#f2f2f7' }
+});

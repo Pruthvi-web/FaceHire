@@ -27,6 +27,9 @@ function App() {
   // Determine if the user is an admin based on their role.
   const isAdmin = role === 'admin';
 
+  // console.log("role: ", role)
+  // console.log("isAdmin: ", isAdmin)
+
   return (
     <>
       <ToastContainer 
@@ -39,15 +42,35 @@ function App() {
       <Router>
         <Routes>
           {/* Public Routes */}
-          <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-          <Route path="/candidate-login" element={!user ? <CandidateLogin /> : <Navigate to="/candidate-dashboard" />} />
-          <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
+          <Route
+            path="/login"
+            element={!user 
+              ? <Login /> 
+              : <Navigate to={isAdmin ? "/dashboard" : "/candidate-dashboard"} />
+            }
+          />
+          {/* <Route
+            path="/candidate-login"
+            element={!user
+              ? <CandidateLogin />
+              : <Navigate to={isAdmin ? "/dashboard" : "/candidate-dashboard"} />
+            }
+          /> */}
+          {/* <Route path="/candidate-dashboard" element={<CandidateDashboard />} /> */}
           
           {/* Protected Routes using Layout */}
           <Route path="/" element={user ? <Layout /> : <Navigate to="/login" />}>
+          {/* on “/” redirect based on role */}
+              <Route
+                index
+                element={<Navigate to={isAdmin ? "dashboard" : "candidate-dashboard"} />}
+              />
+
             <Route path="dashboard" element={<Dashboard />} />
+            {/* now inside Layout so navbar shows */}
+            <Route path="candidate-dashboard" element={<CandidateDashboard />} />
             <Route path="admin" element={isAdmin ? <AdminPanel /> : <div>Access Denied</div>} />
-            <Route path="interviews" element={<div>Interviews Page (Coming Soon)</div>} />
+            {/* <Route path="interviews" element={<div>Interviews Page (Coming Soon)</div>} /> */}
             <Route path="resume-checker" element={<CandidateResumeChecker />} />
             {/* New Interview Route */}
             <Route path="/interview/:interviewId" element={<InterviewPage />} />
