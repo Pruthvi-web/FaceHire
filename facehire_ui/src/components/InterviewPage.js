@@ -14,12 +14,141 @@ import OpenAI from 'openai';                            // ← default export
 import * as use from '@tensorflow-models/universal-sentence-encoder';
 import '@tensorflow/tfjs';
 
+// System font stack for Apple-style
+const systemFontStack = [
+  '-apple-system',
+  'BlinkMacSystemFont',
+  '"Segoe UI"',
+  'Roboto',
+  'Oxygen',
+  'Ubuntu',
+  'Cantarell',
+  '"Open Sans"',
+  '"Helvetica Neue"',
+  'sans-serif',
+].join(', ');
+
+// Shared Apple-inspired styles
+const styles = {
+  container: {
+    padding: '20px',
+    maxWidth: '800px',
+    margin: '0 auto',
+    fontFamily: systemFontStack,
+    color: '#1d1d1f',
+    backgroundColor: '#fff',
+    textAlign: 'center'
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 600,
+    marginBottom: '24px',
+    fontFamily: systemFontStack
+  },
+  videoWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '20px',
+    marginBottom: '32px'
+  },
+  video: {
+    width: '320px',
+    height: '240px',
+    backgroundColor: '#000',
+    borderRadius: 8
+  },
+  emotionFeedback: {
+    border: '1px solid #d2d2d7',
+    borderRadius: 8,
+    padding: '16px',
+    width: '160px',
+    textAlign: 'center',
+    backgroundColor: '#f5f5f7',
+    fontFamily: systemFontStack
+  },
+  formGrid: {
+    display: 'grid',
+    gap: '16px',
+    maxWidth: '400px',
+    margin: '0 auto',
+    textAlign: 'left'
+  },
+  label: {
+    display: 'block',
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#3c3c4399',
+    marginBottom: '8px',
+    fontFamily: systemFontStack
+  },
+  select: {
+    width: '100%',
+    padding: '12px 16px',
+    fontSize: 16,
+    border: '1px solid #d2d2d7',
+    borderRadius: 8,
+    backgroundColor: '#f5f5f7',
+    outline: 'none',
+    fontFamily: systemFontStack
+  },
+  numberInput: {
+    width: '80px',
+    padding: '12px 16px',
+    fontSize: 16,
+    border: '1px solid #d2d2d7',
+    borderRadius: 8,
+    backgroundColor: '#f5f5f7',
+    outline: 'none',
+    fontFamily: systemFontStack
+  },
+  button: {
+    padding: '14px 20px',
+    fontSize: 16,
+    fontWeight: 600,
+    color: '#fff',
+    backgroundColor: '#0070f3',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontFamily: systemFontStack
+  },
+  questionBox: {
+    padding: '24px',
+    border: '1px solid #e1e1e4',
+    borderRadius: 8,
+    marginBottom: '24px',
+    textAlign: 'left',
+    backgroundColor: '#fdfdfd',
+    fontFamily: systemFontStack
+  },
+  questionText: {
+    fontSize: 18,
+    color: '#1d1d1f'
+  },
+  answerSection: {
+    marginTop: '16px',
+    textAlign: 'center'
+  },
+  listening: {
+    fontStyle: 'italic',
+    fontFamily: systemFontStack
+  },
+  transcript: {
+    marginTop: '16px',
+    fontSize: 16,
+    fontFamily: systemFontStack
+  },
+  bodyText: {
+    fontSize: 16,
+    marginBottom: '24px',
+    fontFamily: systemFontStack
+  }
+};
 
 // DEBUG flag to enable/disable extra logging.
 const DEBUG = false;
-const debugLog = (...args) => {
-  if (DEBUG) console.log(...args);
-};
+const debugLog = (...args) => { if (DEBUG) console.log(...args); };
 
 // Placeholder for emotion detection (replace with a real library later)
 function detectEmotions(videoElement) {
@@ -40,11 +169,9 @@ const useExtractor = () => {
       try {
         const p = await pipeline(
           'feature-extraction',
-          // loads your local copy:
           '/models/use-mini'
         );
-
-        debugLog("p:", p)
+        debugLog("p:", p);
         setExtractor(p);
         debugLog('✅ MiniLM extractor loaded');
       } catch (e) {
@@ -57,15 +184,15 @@ const useExtractor = () => {
   return extractor;
 };
 
-// ——— Load the USE model from TF Hub ———
+// ——— Load the USE model from TF Hub ———
 const useModelLoader = () => {
   const [model, setModel] = useState(null);
 
   useEffect(() => {
-    use.load()   // by default pulls from TF Hub: https://tfhub.dev/.../use-lite/1 :contentReference[oaicite:1]{index=1}
+    use.load()
       .then(m => {
         setModel(m);
-        debugLog('✅ USE model loaded from TF Hub');
+        debugLog('✅ USE model loaded from TF Hub');
       })
       .catch(err => {
         console.error('❌ Failed to load USE:', err);
@@ -112,7 +239,7 @@ function InterviewPage() {
   // Video reference for camera feed.
   const videoRef = useRef(null);
 
-  // Speech recognition state.
+  // NEW: Speech recognition state.
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const recognitionRef = useRef(null);
@@ -151,27 +278,22 @@ function InterviewPage() {
     }
   }, [gradingMode, gradingApiKey]);
 
-  const model = useModelLoader();
-
   // --- STEP 1: Load CSV question bank ---
   useEffect(() => {
-    const csvUrl = "/questionBank.csv"; // CSV file should be in the public folder.
+    const csvUrl = "/questionBank.csv";
     debugLog("Fetching CSV from:", csvUrl);
     Papa.parse(csvUrl, {
       download: true,
-      header: true, // Expect headers such as "Question;Answer;Category;Difficulty"
-      delimiter: ",", // Adjust the delimiter if needed (change if semicolon is required)
+      header: true,
+      delimiter: ",",
       skipEmptyLines: "greedy",
       complete: (results) => {
-        // debugLog("CSV parsing complete:", results);
         if (results.errors && results.errors.length > 0) {
           const errorString = results.errors.map(e => e.message).join(", ");
           toast.error("CSV parsing errors: " + errorString);
           return;
         }
         setAllQuestions(results.data);
-        // toast.success("Loaded " + results.data.length + " interview questions.");
-        // toast.success("Loaded interview questions successfully!");
       },
       error: (error) => {
         debugLog("CSV loading error:", error);
@@ -193,7 +315,7 @@ function InterviewPage() {
 
   // --- STEP 3: Setup camera feed ONLY in InterviewPage ---
   useEffect(() => {
-    let stream; // local variable to store the stream
+    let stream;
     const setupCamera = async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -206,10 +328,9 @@ function InterviewPage() {
         toast.error("Unable to access camera. Please check your browser settings.");
       }
     };
-    
+
     setupCamera();
-    
-    // Cleanup function: stop all tracks when the component unmounts.
+
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => {
@@ -233,9 +354,7 @@ function InterviewPage() {
       }
     };
     loadModels();
-  }, []);
-  
-  useEffect(() => {
+
     const interval = setInterval(async () => {
       if (videoRef.current) {
         try {
@@ -244,7 +363,6 @@ function InterviewPage() {
             .withFaceExpressions();
           if (detections && detections.expressions) {
             const expressions = detections.expressions;
-            // Determine the dominant expression for "mood"
             let dominantExpression = "neutral";
             let dominantValue = 0;
             for (const [expr, value] of Object.entries(expressions)) {
@@ -253,26 +371,22 @@ function InterviewPage() {
                 dominantExpression = expr;
               }
             }
-            // Compute anxiety using a weighted formula
-            // We assume: angry, fearful, and sad contribute positively; happy reduces anxiety.
-            const rawAnxiety = 
-              0.3 * (expressions.angry || 0) + 
-              0.3 * (expressions.fearful || 0) + 
-              0.2 * (expressions.sad || 0) - 
+            const rawAnxiety =
+              0.3 * (expressions.angry || 0) +
+              0.3 * (expressions.fearful || 0) +
+              0.2 * (expressions.sad || 0) -
               0.4 * (expressions.happy || 0);
-            // Ensure no negative values
             const adjustedAnxiety = Math.max(0, rawAnxiety);
-            // Multiply by 20 to amplify differences, then clamp the result between 0 and 10
             const anxietyScore = Math.min(10, Math.round(adjustedAnxiety * 20));
 
             setEmotionalState({ mood: dominantExpression, anxietyScore: anxietyScore.toString() });
-            debugLog("Detected expressions:", expressions, "Dominant:", dominantExpression, "Anxiety Score:", anxietyScore);
           }
         } catch (error) {
           debugLog("Error in face detection:", error);
         }
       }
-    }, 1000); // Poll every second
+    }, 1000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -283,7 +397,6 @@ function InterviewPage() {
     if (currentQ && currentQ.Question) {
       const utterance = new SpeechSynthesisUtterance(currentQ.Question);
       speechSynthesis.speak(utterance);
-      debugLog("Speaking question:", currentQ.Question);
     }
   }, [phase, currentIndex, sessionQuestions]);
 
@@ -299,7 +412,6 @@ function InterviewPage() {
       toast.error("No questions available for this category.");
       return;
     }
-    // Select up to numQuestions from the filtered questions.
     const sessionQs = shuffleArray(filtered).slice(0, numQuestions);
     setSessionQuestions(sessionQs);
     setCurrentIndex(0);
@@ -330,30 +442,25 @@ function InterviewPage() {
           interimTranscript += transcript;
         }
       }
-      debugLog("Interim transcript:", interimTranscript);
-      // Reset auto-stop timer on each result.
       if (recognitionTimerRef.current) {
         clearTimeout(recognitionTimerRef.current);
       }
       recognitionTimerRef.current = setTimeout(() => {
         recognition.stop();
-      }, 3000); // Stop after 3 seconds of silence.
+      }, 3000);
     };
 
     recognition.onerror = (event) => {
-      debugLog("Speech recognition error:", event.error);
       toast.error("Speech recognition error: " + event.error);
     };
 
     recognition.onend = () => {
       setIsRecognizing(false);
-      debugLog("Speech recognition ended. Final transcript:", currentTranscript);
     };
 
     recognition.start();
     setIsRecognizing(true);
     recognitionRef.current = recognition;
-    debugLog("Speech recognition started.");
     toast.info("Listening for your answer...");
   };
 
@@ -381,7 +488,7 @@ function InterviewPage() {
     const updatedResponses = [...responses, newResponse];
     setResponses(updatedResponses);
     setCurrentTranscript("");
-    
+
     if (currentIndex + 1 < sessionQuestions.length) {
       setCurrentIndex(prev => prev + 1);
     } else {
@@ -391,29 +498,28 @@ function InterviewPage() {
 
   // --- STEP 9: Complete Interview Session & Save as One Document in Firestore ---
   const completeInterviewSession = async (sessionResponses) => {
-    if (!candidateUid||!interviewId) return;
-    const graded = await Promise.all(sessionResponses.map(async resp=>{
-      const q = sessionQuestions.find(q=>q.Question===resp.question)||{};
-      const correct = q.Answer||"";
-      let score=0;
+    if (!candidateUid || !interviewId) return;
+    const graded = await Promise.all(sessionResponses.map(async resp => {
+      const q = sessionQuestions.find(q => q.Question === resp.question) || {};
+      const correct = q.Answer || "";
+      let score = 0;
 
-      if (gradingMode==="openai" && openaiClient) {
+      if (gradingMode === "openai" && openaiClient) {
         try {
           const res = await openaiClient.createEmbedding({
-            model:"text-embedding-ada-002",
-            input:[resp.answer,correct]
+            model: "text-embedding-ada-002",
+            input: [resp.answer, correct]
           });
-          const [u,v] = res.data.data.map(d=>d.embedding);
-          const dot=u.reduce((s,x,i)=>s+x*v[i],0);
-          const magU=Math.hypot(...u), magV=Math.hypot(...v);
-          score=magU&&magV?Math.round(dot/(magU*magV)*100):0;
-        } catch (e) {
-          debugLog("OpenAI embed error:",e);
+          const [u, v] = res.data.data.map(d => d.embedding);
+          const dot = u.reduce((s, x, i) => s + x * v[i], 0);
+          const magU = Math.hypot(...u), magV = Math.hypot(...v);
+          score = magU && magV ? Math.round(dot / (magU * magV) * 100) : 0;
+        } catch {
           score = Math.round(
             stringSimilarity.compareTwoStrings(
               resp.answer.trim().toLowerCase(),
               correct.trim().toLowerCase()
-            )*100
+            ) * 100
           );
         }
       } else {
@@ -421,44 +527,45 @@ function InterviewPage() {
           stringSimilarity.compareTwoStrings(
             resp.answer.trim().toLowerCase(),
             correct.trim().toLowerCase()
-          )*100
+          ) * 100
         );
       }
 
-      const grade = score>=80?'A':score>=60?'B':score>=40?'C':'F';
-      return {...resp, correctAnswer:correct, score, grade};
+      const grade = score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'F';
+      return { ...resp, correctAnswer: correct, score, grade };
     }));
 
     setGradedResponses(graded);
 
     try {
       const sessionRef = await firestore.collection("interviewSessions").add({
-        interviewId, userId:candidateUid,
-        selectedCategory, numQuestions: sessionQuestions.length,
-        responses:graded, completedAt:new Date()
+        interviewId,
+        userId: candidateUid,
+        selectedCategory,
+        numQuestions: sessionQuestions.length,
+        responses: graded,
+        completedAt: new Date()
       });
       await firestore.collection("interviews")
         .doc(interviewId)
-        .update({status:'completed', sessionId:sessionRef.id});
+        .update({ status: 'completed', sessionId: sessionRef.id });
       toast.success("Interview saved!");
       setPhase("completed");
     } catch (err) {
-      toast.error("Save error: "+err.message);
+      toast.error("Save error: " + err.message);
     }
   };
 
   // --- STEP 10: Regrade Session (Placeholder) ---
   const regradeSession = async () => {
     // Placeholder: Add regrading logic here if desired.
-    // toast.info("Regrading session... (Feature to be implemented)");
-    // toast.info("Regrading session... (Feature to be implemented)");
   };
 
   // --- Render Based on Phase ---
   if (phase === "waiting") {
     return (
       <div style={styles.container}>
-        <h2>Interview Waiting Room</h2>
+        <h2 style={styles.title}>Interview Waiting Room</h2>
         <div style={styles.videoWrapper}>
           <video ref={videoRef} autoPlay muted style={styles.video} />
           <div style={styles.emotionFeedback}>
@@ -466,74 +573,91 @@ function InterviewPage() {
             <p>Anxiety: {emotionalState.anxietyScore}</p>
           </div>
         </div>
-        <div style={styles.waitingOptions}>
-          <div>
-            <label>Select Interview Topic (Category): </label>
-            <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
-              <option value="All">All</option>
-              {Array.from(new Set(allQuestions.map(q => q.Category).filter(Boolean))).map((cat, idx) => (
-                <option key={idx} value={cat}>
-                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ marginTop: "10px" }}>
-            <label>Number of Questions: </label>
-            <input 
-              type="number" 
-              value={numQuestions} 
-              onChange={(e) => setNumQuestions(parseInt(e.target.value) || 0)} 
-              style={{ width: "60px" }}
-            />
-          </div>
-          <button style={{ marginTop: "20px", padding: "10px 20px" }} onClick={startInterviewSession}>
-            I'm Ready
+        <div style={styles.formGrid}>
+          <label style={styles.label}>Select Interview Topic (Category):</label>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            style={styles.select}
+          >
+            <option value="All">All</option>
+            {Array.from(new Set(allQuestions.map(q => q.Category).filter(Boolean))).map((cat, idx) => (
+              <option key={idx} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </option>
+            ))}
+          </select>
+
+          <label style={styles.label}>Number of Questions:</label>
+          <input
+            type="number"
+            value={numQuestions}
+            onChange={(e) => setNumQuestions(parseInt(e.target.value, 10) || 0)}
+            style={styles.numberInput}
+          />
+
+          <button style={styles.button} onClick={startInterviewSession}>
+            I’m Ready
           </button>
         </div>
       </div>
     );
   } else if (phase === "inProgress") {
-    const currentQ = sessionQuestions[currentIndex];
+    const currentQ = sessionQuestions[currentIndex] || {};
     return (
       <div style={styles.container}>
-        <h2>Interview Session</h2>
+        <h2 style={styles.title}>
+          Question {currentIndex + 1} of {sessionQuestions.length}
+        </h2>
+  
+        {/* ← KEEP CAMERA VISIBLE */}
         <div style={styles.videoWrapper}>
-          <video ref={videoRef} autoPlay muted style={styles.video} />
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            style={styles.video}
+          />
           <div style={styles.emotionFeedback}>
             <p>Mood: {emotionalState.mood}</p>
             <p>Anxiety: {emotionalState.anxietyScore}</p>
           </div>
         </div>
-        <div style={styles.questionSection}>
-          <h3>Question {currentIndex + 1} of {sessionQuestions.length}</h3>
-          <p>{currentQ.Question}</p>
+  
+        <div style={styles.questionBox}>
+          <p style={styles.questionText}>{currentQ.Question}</p>
         </div>
+  
         <div style={styles.answerSection}>
           {isRecognizing ? (
-            <p>Listening… (Please speak your answer)</p>
+            <p style={styles.listening}>Listening… (Please speak your answer)</p>
           ) : (
             <button onClick={startRecognition} style={styles.button}>
               Record Answer
             </button>
           )}
-          <p><strong>Your Captured Answer:</strong> {currentTranscript}</p>
-          <button onClick={handleSubmitAnswer} style={{ ...styles.button, marginTop: "10px" }}>
+          <p style={styles.transcript}>
+            <strong>Your Captured Answer:</strong> {currentTranscript}
+          </p>
+          <button
+            onClick={handleSubmitAnswer}
+            style={{ ...styles.button, marginTop: '16px' }}
+          >
             Submit Answer & Next
           </button>
         </div>
       </div>
-    );
+    );  
   } else if (phase === "completed") {
     return (
       <div style={styles.container}>
-        <h2>Interview Session Completed</h2>
-        <p>Your interview responses have been saved.</p>
+        <h2 style={styles.title}>Interview Session Completed</h2>
+        <p style={styles.bodyText}>Your interview responses have been saved.</p>
         <button
           style={styles.button}
           onClick={async () => {
-            await regradeSession();    // run your regrade logic
-            navigate('/candidate-dashboard');     // then go to /candidate
+            await regradeSession();
+            navigate('/candidate-dashboard');
           }}
         >
           Back to Dashboard
@@ -544,54 +668,5 @@ function InterviewPage() {
     return <div style={styles.container}>Unknown phase.</div>;
   }
 }
-
-const styles = {
-  container: {
-    padding: "20px",
-    maxWidth: "800px",
-    margin: "0 auto",
-    textAlign: "center"
-  },
-  videoWrapper: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: "20px"
-  },
-  video: {
-    width: "320px",
-    height: "240px",
-    backgroundColor: "#333",
-    marginRight: "20px"
-  },
-  emotionFeedback: {
-    border: "1px solid #ccc",
-    borderRadius: "4px",
-    padding: "10px",
-    width: "150px",
-    textAlign: "center"
-  },
-  waitingOptions: {
-    marginTop: "20px",
-    textAlign: "left",
-    display: "inline-block"
-  },
-  questionSection: {
-    marginBottom: "20px",
-    textAlign: "left"
-  },
-  answerSection: {
-    marginBottom: "20px"
-  },
-  button: {
-    padding: "10px 20px",
-    backgroundColor: "#1976d2",
-    color: "#fff",
-    border: "none",
-    borderRadius: "4px",
-    fontSize: "16px",
-    cursor: "pointer"
-  }
-};
 
 export default InterviewPage;

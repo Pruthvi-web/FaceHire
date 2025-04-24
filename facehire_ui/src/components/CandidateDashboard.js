@@ -583,7 +583,7 @@ export default function CandidateDashboard() {
 											<TableRow>
 												<TableCell>Category</TableCell>
 												<TableCell align="right">Avg Score</TableCell>
-												<TableCell align="right">Count</TableCell>
+												<TableCell align="right">Questions</TableCell>
 											</TableRow>
 										</TableHead>
 										<TableBody>
